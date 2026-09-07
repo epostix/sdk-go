@@ -1,0 +1,126 @@
+{
+  "description": "Response decoding. Unknown values must never fail the enclosing object.",
+  "cases": [
+    {
+      "name": "unknown_enum_member_survives",
+      "type": "Email",
+      "wire": { "id": "eml_1", "status": "quantum_delivered", "created_at": "2026-09-06T10:00:00Z" },
+      "expect": { "status": "quantum_delivered", "statusIsKnown": false }
+    },
+    {
+      "name": "known_enum_member",
+      "type": "Email",
+      "wire": { "id": "eml_1", "status": "delivered", "created_at": "2026-09-06T10:00:00Z" },
+      "expect": { "status": "delivered", "statusIsKnown": true }
+    },
+    {
+      "name": "unknown_top_level_field_is_preserved",
+      "type": "Email",
+      "wire": { "id": "eml_1", "status": "sent", "created_at": "2026-09-06T10:00:00Z", "future_field": 42 },
+      "expect": { "id": "eml_1", "unknownFields": { "future_field": 42 } }
+    },
+    {
+      "name": "unknown_error_type_degrades_by_status",
+      "type": "APIError",
+      "status": 503,
+      "wire": { "status": 503, "type": "quantum_overload", "message": "unavailable", "request_id": "req_1" },
+      "expect": { "class": "EpostixServerError", "type": "quantum_overload", "isKnownType": false, "retryable": true }
+    },
+    {
+      "name": "unknown_error_type_on_4xx_is_not_retryable",
+      "type": "APIError",
+      "status": 422,
+      "wire": { "status": 422, "type": "quantum_invalid", "message": "nope", "request_id": "req_2" },
+      "expect": { "class": "EpostixInvalidRequestError", "type": "quantum_invalid", "isKnownType": false, "retryable": false }
+    },
+    {
+      "name": "validation_error_carries_field_details",
+      "type": "APIError",
+      "status": 422,
+      "wire": {
+        "status": 422, "type": "validation_error", "message": "Invalid", "request_id": "req_3",
+        "details": [{ "field": "to", "message": "required", "code": "required" }]
+      },
+      "expect": { "class": "EpostixValidationError", "fieldErrors": 1, "retryable": false }
+    },
+    {
+      "name": "non_json_proxy_failure_is_bounded",
+      "type": "raw",
+      "status": 502,
+      "contentType": "text/html",
+      "body": "<html><body>502 Bad Gateway</body></html>",
+      "expect": { "class": "EpostixServerError", "type": "", "isKnownType": false, "requestId": "", "rawBodySnippetPresent": true }
+    },
+    {
+      "name": "rate_limit_headers_parsed",
+      "type": "APIError",
+      "status": 429,
+      "headers": {
+        "RateLimit-Limit": "100", "RateLimit-Remaining": "0", "RateLimit-Reset": "2",
+        "RateLimit-Policy": "100;w=60", "RateLimit-Scope": "workspace", "Retry-After": "2"
+      },
+      "wire": { "status": 429, "type": "rate_limit_exceeded", "message": "Slow down", "request_id": "req_4" },
+      "expect": {
+        "class": "EpostixRateLimitError", "retryAfterSeconds": 2,
+        "rateLimit": { "limit": 100, "remaining": 0, "resetAfterSeconds": 2, "policyBurst": 100, "policyWindowSeconds": 60, "scope": "workspace" },
+        "retryable": true
+      }
+    },
+    {
+      "name": "daily_quota_never_sleeps",
+      "type": "APIError",
+      "status": 429,
+      "headers": { "Retry-After": "31200" },
+      "wire": { "status": 429, "type": "daily_quota_exceeded", "message": "Daily quota reached", "request_id": "req_5" },
+      "expect": { "class": "EpostixQuotaExceededError", "quotaPeriod": "daily", "retryAfterSeconds": 31200, "retryable": false }
+    },
+    {
+      "name": "monthly_quota_has_no_next_attempt",
+      "type": "APIError",
+      "status": 429,
+      "wire": { "status": 429, "type": "monthly_quota_exceeded", "message": "Monthly quota reached", "request_id": "req_6" },
+      "expect": { "class": "EpostixQuotaExceededError", "quotaPeriod": "monthly", "retryAfterSeconds": null, "nextAttemptAt": null, "retryable": false }
+    },
+    {
+      "name": "idempotency_conflict_never_retries",
+      "type": "APIError",
+      "status": 409,
+      "wire": { "status": 409, "type": "idempotency_conflict", "message": "Different body", "request_id": "req_7" },
+      "expect": { "class": "EpostixIdempotencyConflictError", "retryable": false }
+    },
+    {
+      "name": "idempotency_in_progress_retries_with_same_key",
+      "type": "APIError",
+      "status": 409,
+      "headers": { "Retry-After": "1" },
+      "wire": { "status": 409, "type": "idempotency_in_progress", "message": "In progress", "request_id": "req_8" },
+      "expect": { "class": "EpostixIdempotencyInProgressError", "retryAfterSeconds": 1, "retryable": true }
+    },
+    {
+      "name": "replay_header_is_surfaced",
+      "type": "Email",
+      "status": 200,
+      "headers": { "Idempotent-Replayed": "true" },
+      "wire": { "id": "eml_1", "status": "sent", "created_at": "2026-09-06T10:00:00Z" },
+      "expect": { "idempotentReplayed": true }
+    },
+    {
+      "name": "attachment_union_decodes_reference_not_empty_inline",
+      "type": "EmailCreateAttachmentsItem",
+      "wire": { "attachment_id": "att_9" },
+      "expect": { "variant": "AttachmentRef", "attachment_id": "att_9" }
+    },
+    {
+      "name": "attachment_union_decodes_url",
+      "type": "EmailCreateAttachmentsItem",
+      "wire": { "filename": "r.pdf", "content_url": "https://example.com/r.pdf" },
+      "expect": { "variant": "AttachmentURL" }
+    },
+    {
+      "name": "attachment_union_unrecognised_shape_is_an_error",
+      "type": "EmailCreateAttachmentsItem",
+      "wire": { "filename": "r.pdf" },
+      "expect": { "error": "protocol" }
+    }
+  ]
+}

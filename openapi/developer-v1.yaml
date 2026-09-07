@@ -1,0 +1,5774 @@
+openapi: 3.0.3
+info:
+  title: Epostix Developer API
+  description: Epostix Developer API
+  version: 1.0.0
+servers:
+  - url: 'https://api.epostix.com/v1'
+    description: Production server
+  - url: 'https://api.staging.epostix.com/v1'
+    description: Staging server
+tags:
+  - name: Emails
+    description: Send a message, read it back, and follow what happened to it.
+  - name: Batch
+    description: Submit up to 100 messages in one request.
+  - name: Spam check
+    description: Score a message before you send it, so you find problems while you can still fix them.
+  - name: Templates
+    description: Reusable content with variables, versioned so a deploy cannot change what is already going out.
+  - name: Attachments
+    description: Upload a file once and reference it from a send.
+  - name: Domains
+    description: Add, verify and configure the domains you send from.
+  - name: Events
+    description: The delivery timeline for your messages.
+  - name: Inbound
+    description: Mail received at your verified domains.
+  - name: Analytics
+    description: Aggregate counts for a time range. Counts only, never rates.
+  - name: Broadcasts
+    description: One message to an audience. The dashboard remains the authoring surface.
+  - name: Contacts
+    description: The people you send to, and their subscription state.
+  - name: Tags
+    description: Labels that group contacts into an audience.
+  - name: Suppressions
+    description: Addresses that will not be sent to, and why.
+  - name: Webhooks
+    description: Endpoints that receive events as they happen.
+  - name: API keys
+    description: Credentials, their scopes, and what has been done with them.
+paths:
+  /emails:
+    post:
+      tags: [Emails]
+      summary: Send an email
+      description: Send a transactional email. Domain is derived from the `from` address.
+      operationId: sendEmail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          description: Unique key to ensure idempotent request processing. Cached for 24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailCreate'
+      responses:
+        '201':
+          description: Email sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Email'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '409':
+          description: Idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    get:
+      tags: [Emails]
+      summary: List emails
+      description: List emails across all domains with cursor-based pagination and filtering.
+      operationId: listEmails
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Number of items to return (1-100, default 25)
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for forward pagination. Returns items after this ID.
+        - name: ending_before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for backward pagination. Returns items before this ID.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - scheduled
+              - sent
+              - delivered
+              - failed
+              - cancelled
+          description: Filter by email status.
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by recipient email address (partial match).
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by sender email address (partial match).
+        - name: subject
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by subject (partial match).
+        - name: tags
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by tags (emails matching any of the provided tags).
+        - name: created_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter emails created after this timestamp (ISO 8601).
+        - name: created_before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter emails created before this timestamp (ISO 8601).
+        - name: domain_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by domain ID.
+      responses:
+        '200':
+          description: List of emails
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailListResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /emails/check:
+    post:
+      tags: [Spam check]
+      summary: Check email spam score
+      description: Score email content for spam without sending. Returns spam score, per-rule breakdown, and actionable suggestions.
+      operationId: checkEmail
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailCreate'
+      responses:
+        '200':
+          description: Spam check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpamCheckResult'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /emails/batch:
+    post:
+      tags: [Batch]
+      summary: Send a batch of emails
+      description: Send up to 100 transactional emails in a single request. Returns per-email results.
+      operationId: sendEmailBatch
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          description: Unique key to ensure idempotent request processing. Cached for 24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailBatchRequest'
+      responses:
+        '200':
+          description: Batch processed (may contain partial failures)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailBatchResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '409':
+          description: Idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /emails/{email_id}:
+    parameters:
+      - name: email_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Email ID
+    patch:
+      tags: [Emails]
+      summary: Update an email
+      description: Update a pending email. Currently supports rescheduling via `scheduled_at`.
+      operationId: updateEmail
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailUpdate'
+      responses:
+        '200':
+          description: Email updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Email'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    get:
+      tags: [Emails]
+      summary: Get an email
+      description: Retrieve a single email by ID.
+      operationId: getEmail
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Email details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Email'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /emails/{email_id}/cancel:
+    parameters:
+      - name: email_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Email ID
+    post:
+      tags: [Emails]
+      summary: Cancel an email
+      description: |
+        Cancel an email that hasn't been delivered yet. Works for scheduled emails
+        and recently-sent emails still in the processing queue (~10 second window).
+      operationId: cancelEmail
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cancel result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelEmailResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /emails/{email_id}/events:
+    get:
+      tags: [Emails]
+      summary: List events for an email
+      description: Returns the full event timeline for a specific email, including delivery, opens, clicks, bounces, and complaints.
+      operationId: listEmailEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: email_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Email ID.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Number of items to return (1-100, default 25).
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for forward pagination. Returns items after this event ID.
+        - name: ending_before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for backward pagination. Returns items before this event ID.
+      responses:
+        '200':
+          description: List of events for the email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Email not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /emails/{email_id}/resend:
+    parameters:
+      - name: email_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Email ID of the original email to resend
+    post:
+      tags: [Emails]
+      summary: Resend an email
+      description: Resend a previously sent or failed email. Creates a new email with the same content and returns the new email ID.
+      operationId: resendEmail
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Email resent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Email'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Email cannot be resent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /events:
+    get:
+      tags: [Events]
+      summary: List events
+      description: List all email events across the account with cursor-based pagination and filtering. Events include deliveries, opens, clicks, bounces, complaints, and more.
+      operationId: listEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Number of items to return (1-100, default 25).
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for forward pagination. Returns items after this event ID.
+        - name: ending_before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for backward pagination. Returns items before this event ID.
+        - name: event_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - sent
+              - delivered
+              - bounced
+              - opened
+              - clicked
+              - complained
+              - failed
+              - delayed
+          description: Filter by event type.
+        - name: email_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter events for a specific email.
+        - name: domain_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter events for a specific domain.
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by recipient email address (partial match).
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by sender email address (partial match).
+        - name: tags
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by email tags (events for emails matching any of the provided tags).
+        - name: created_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events created after this timestamp (ISO 8601).
+        - name: created_before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events created before this timestamp (ISO 8601).
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventListResponse'
+              examples:
+                delivered:
+                  summary: Delivered event
+                  value:
+                    data:
+                      - id: "evt_abc123"
+                        type: "email.delivered"
+                        email_id: "em_xyz789"
+                        created_at: "2024-01-15T10:30:00Z"
+                        data:
+                          to: "user@example.com"
+                          from: "sender@yourdomain.com"
+                          subject: "Welcome aboard"
+                          delivered_at: "2024-01-15T10:30:01Z"
+                          smtp_code: 250
+                          mx_host: "alt1.gmail-smtp-in.l.google.com"
+                    has_more: false
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /events/{event_id}:
+    get:
+      tags: [Events]
+      summary: Get an event
+      description: Retrieve a single event by ID with full metadata. Includes event-specific data such as bounce details, click URLs, or open source information.
+      operationId: getEvent
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Event ID.
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+              examples:
+                bounce:
+                  summary: Bounce event
+                  value:
+                    id: "evt_def456"
+                    type: "email.bounced"
+                    email_id: "em_xyz789"
+                    created_at: "2024-01-15T10:30:02Z"
+                    data:
+                      to: "invalid@example.com"
+                      bounce_type: "hard"
+                      bounce_subtype: "mailbox_not_found"
+                      smtp_code: 550
+                      enhanced_status_code: "5.1.1"
+                      provider: "gmail"
+                      recommended_action: "clean"
+                      original_error: "550 5.1.1 The email account does not exist"
+                click:
+                  summary: Click event
+                  value:
+                    id: "evt_ghi789"
+                    type: "email.clicked"
+                    email_id: "em_xyz789"
+                    created_at: "2024-01-15T11:00:00Z"
+                    data:
+                      to: "user@example.com"
+                      url: "https://example.com/pricing"
+                      ip_address: "192.168.1.1"
+                      user_agent: "Mozilla/5.0..."
+                      click_count: 1
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /domains:
+    get:
+      tags: [Domains]
+      summary: List domains
+      description: List all sending domains with cursor-based pagination.
+      operationId: listDomains
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Number of items to return (1-100, default 25).
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for forward pagination. Pass the id of the last item from the previous page.
+        - name: ending_before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for backward pagination.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - unverified
+              - verifying
+              - active
+          description: Filter domains by verification status.
+      responses:
+        '200':
+          description: List of domains
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    post:
+      tags: [Domains]
+      summary: Add a domain
+      description: Add a new sending domain. Returns the domain with DNS records that need to be configured.
+      operationId: createDomain
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DomainCreateRequest'
+      responses:
+        '201':
+          description: Domain created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /domains/{domain_id}:
+    get:
+      tags: [Domains]
+      summary: Get a domain
+      description: Get a domain with its DNS records and verification status.
+      operationId: getDomain
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The domain ID.
+      responses:
+        '200':
+          description: Domain details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Domain not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    patch:
+      tags: [Domains]
+      summary: Update domain settings
+      description: Update tracking settings for a domain.
+      operationId: updateDomain
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The domain ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DomainUpdate'
+      responses:
+        '200':
+          description: Domain updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Domain not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    delete:
+      tags: [Domains]
+      summary: Delete a domain
+      description: Delete a sending domain. Cannot delete a domain that has pending emails or is the only active domain.
+      operationId: deleteDomain
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The domain ID.
+      responses:
+        '204':
+          description: Domain deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Domain not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Domain cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /domains/{domain_id}/verify:
+    post:
+      tags: [Domains]
+      summary: Verify a domain
+      description: Trigger DNS verification for a domain. Returns the domain with updated verification status for each DNS record.
+      operationId: verifyDomain
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The domain ID.
+      responses:
+        '200':
+          description: Verification results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Domain not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /attachments:
+    post:
+      tags: [Attachments]
+      summary: Upload an attachment
+      description: Pre-upload an attachment for reuse across multiple emails. Returns an attachment_id valid for 24 hours.
+      operationId: uploadAttachment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachmentUpload'
+      responses:
+        '201':
+          description: Attachment uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /contacts:
+    get:
+      tags: [Contacts]
+      summary: List contacts
+      description: List audience contacts with cursor-based pagination and filters.
+      operationId: listContacts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Number of items to return (1-100, default 25).
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for forward pagination. Pass the id of the last item from the previous page.
+        - name: ending_before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Cursor for backward pagination.
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by email address (partial match).
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - subscribed
+              - unsubscribed
+              - cleaned
+          description: Filter by subscription status.
+        - name: engagement_tier
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - no_data
+              - new
+              - engaged
+              - at_risk
+              - inactive
+              - cold
+          description: Filter by engagement tier.
+        - name: tag_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter contacts that have this tag assigned.
+        - name: created_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter contacts created after this timestamp (ISO 8601).
+        - name: created_before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter contacts created before this timestamp (ISO 8601).
+      responses:
+        '200':
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactListResponse'
+        '400':
+          description: Bad request (e.g., invalid cursor)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    post:
+      tags: [Contacts]
+      summary: Create a contact
+      description: Create a new audience contact.
+      operationId: createContact
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactCreate'
+      responses:
+        '201':
+          description: Contact created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /contacts/bulk:
+    post:
+      tags: [Contacts]
+      summary: Bulk create contacts
+      description: Create up to 1000 contacts in a single request. Returns a summary with created, updated, and failed counts.
+      operationId: bulkCreateContacts
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkContactCreateRequest'
+      responses:
+        '200':
+          description: Bulk operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkContactCreateResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /contacts/by-email/{email}:
+    put:
+      tags: [Contacts]
+      summary: Upsert a contact by email
+      description: Create or update a contact by email address. If a contact with this email exists, it is updated. Otherwise, a new contact is created.
+      operationId: upsertContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+          description: Email address of the contact (URL-encoded).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactUpsert'
+      responses:
+        '200':
+          description: Contact created or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /contacts/{contact_id}:
+    get:
+      tags: [Contacts]
+      summary: Get a contact
+      description: Get a contact with tags, status, and engagement tier.
+      operationId: getContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Contact ID.
+      responses:
+        '200':
+          description: Contact details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    patch:
+      tags: [Contacts]
+      summary: Update a contact
+      description: Update a contact's name or tags.
+      operationId: updateContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Contact ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactUpdate'
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    delete:
+      tags: [Contacts]
+      summary: Delete a contact
+      description: Delete a contact (soft delete).
+      operationId: deleteContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Contact ID.
+      responses:
+        '204':
+          description: Contact deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /contacts/{contact_id}/unsubscribe:
+    post:
+      tags: [Contacts]
+      summary: Unsubscribe a contact
+      description: Unsubscribe a contact from future emails.
+      operationId: unsubscribeContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Contact ID.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Optional reason for unsubscribing.
+      responses:
+        '200':
+          description: Contact unsubscribed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /contacts/{contact_id}/tags/{tag_id}:
+    post:
+      tags: [Contacts]
+      summary: Assign a tag to a contact
+      description: Assign a tag to a contact.
+      operationId: assignContactTag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Contact ID.
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tag ID.
+      responses:
+        '204':
+          description: Tag assigned
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Contact or tag not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    delete:
+      tags: [Contacts]
+      summary: Remove a tag from a contact
+      description: Remove a tag assignment from a contact.
+      operationId: removeContactTag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Contact ID.
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tag ID.
+      responses:
+        '204':
+          description: Tag removed
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Contact or tag not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /tags:
+    get:
+      tags: [Tags]
+      summary: List tags
+      description: List all audience tags.
+      operationId: listTags
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, minimum: 1, maximum: 100 }
+        - name: starting_after
+          in: query
+          schema: { type: string }
+        - name: ending_before
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    post:
+      tags: [Tags]
+      summary: Create a tag
+      description: Create a new audience tag.
+      operationId: createTag
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreate'
+      responses:
+        '201':
+          description: Tag created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error (e.g., tag name already exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /tags/{tag_id}:
+    delete:
+      tags: [Tags]
+      summary: Delete a tag
+      description: Delete a tag. All contact-tag assignments for this tag will be removed.
+      operationId: deleteTag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tag ID.
+      responses:
+        '204':
+          description: Tag deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Tag not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /api-keys:
+    get:
+      tags: [API keys]
+      summary: List API keys
+      description: List all API keys for the authenticated partner. Tokens are masked.
+      operationId: listAPIKeys
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, minimum: 1, maximum: 100 }
+        - name: starting_after
+          in: query
+          schema: { type: string }
+        - name: ending_before
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    post:
+      tags: [API keys]
+      summary: Create an API key
+      description: Create a new API key. The raw token is returned only once in the response.
+      operationId: createAPIKey
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIKeyCreateRequest'
+      responses:
+        '201':
+          description: API key created. The raw token is shown only once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyCreateResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: The key may not create a key with the requested scopes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /api-keys/{api_key_id}:
+    get:
+      tags: [API keys]
+      summary: Get an API key
+      description: Get details of a single API key.
+      operationId: getAPIKey
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: api_key_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: API key ID.
+      responses:
+        '200':
+          description: API key details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    patch:
+      tags: [API keys]
+      summary: Update an API key
+      description: Update name, IP whitelist, or permissions of an API key.
+      operationId: updateAPIKey
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: api_key_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: API key ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIKeyUpdateRequest'
+      responses:
+        '200':
+          description: API key updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    delete:
+      tags: [API keys]
+      summary: Delete an API key
+      description: Revoke and delete an API key. Cannot delete the key used for this request.
+      operationId: deleteAPIKey
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: api_key_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: API key ID.
+      responses:
+        '204':
+          description: API key deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '409':
+          description: Cannot delete self
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /api-keys/{api_key_id}/usage:
+    get:
+      tags: [API keys]
+      summary: Get API key usage logs
+      description: Retrieve recent usage logs for an API key.
+      operationId: getAPIKeyUsage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: api_key_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: API key ID.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Number of items to return (1-100, default 25).
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Return records after this cursor.
+        - name: ending_before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Return records before this cursor.
+      responses:
+        '200':
+          description: Usage logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyUsageListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+  /webhooks:
+    post:
+      tags: [Webhooks]
+      summary: Register a webhook endpoint
+      operationId: createWebhook
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookCreateRequest'
+      responses:
+        '201':
+          description: Webhook endpoint created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookCreateResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    get:
+      tags: [Webhooks]
+      summary: List webhook endpoints
+      operationId: listWebhooks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+        - name: starting_after
+          in: query
+          schema:
+            type: string
+        - name: ending_before
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of webhook endpoints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /webhooks/{webhook_id}:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Webhooks]
+      summary: Get webhook endpoint details
+      operationId: getWebhook
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Webhook endpoint details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    put:
+      tags: [Webhooks]
+      summary: Update a webhook endpoint
+      operationId: updateWebhook
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookUpdateRequest'
+      responses:
+        '200':
+          description: Webhook endpoint updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    delete:
+      tags: [Webhooks]
+      summary: Delete a webhook endpoint
+      operationId: deleteWebhook
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Webhook deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /webhooks/{webhook_id}/toggle:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [Webhooks]
+      summary: Enable or disable a webhook endpoint
+      operationId: toggleWebhook
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Webhook toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /webhooks/{webhook_id}/test:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Webhooks]
+      summary: Send a test event to a webhook endpoint
+      operationId: testWebhook
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Test delivery result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDeliveryLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /webhooks/{webhook_id}/logs:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Webhooks]
+      summary: List delivery logs for a webhook
+      operationId: listWebhookLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+        - name: starting_after
+          in: query
+          schema:
+            type: string
+        - name: ending_before
+          in: query
+          schema:
+            type: string
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - success
+              - failed
+        - name: created_after
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of delivery logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDeliveryLogListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /webhooks/{webhook_id}/replay/{log_id}:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: log_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Webhooks]
+      summary: Replay a single webhook delivery
+      operationId: replayWebhookLog
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Replayed delivery log
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDeliveryLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /webhooks/{webhook_id}/replay:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Webhooks]
+      summary: Bulk replay webhook deliveries
+      operationId: bulkReplayWebhook
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookBulkReplayRequest'
+      responses:
+        '200':
+          description: Bulk replay result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookBulkReplayResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /webhooks/{webhook_id}/rotate-secret:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Webhooks]
+      summary: Rotate webhook signing secret
+      operationId: rotateWebhookSecret
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: New secret generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookRotateSecretResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /suppressions:
+    get:
+      tags: [Suppressions]
+      summary: List suppressions
+      description: List all suppressed email addresses for this account. Includes bounce-based, complaint, unsubscribe, and manual suppressions.
+      operationId: listSuppressions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+        - name: starting_after
+          in: query
+          schema:
+            type: string
+          description: Cursor for forward pagination.
+        - name: ending_before
+          in: query
+          schema:
+            type: string
+          description: Cursor for backward pagination.
+        - name: reason
+          in: query
+          schema:
+            type: string
+            enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe]
+        - name: email
+          in: query
+          schema:
+            type: string
+          description: Filter by email (partial match).
+        - name: created_after
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of suppressions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuppressionListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    post:
+      tags: [Suppressions]
+      summary: Add manual suppression
+      description: Manually suppress an email address. Reason is always "manual". Useful for ESP migration, compliance, or known spam traps.
+      operationId: createSuppression
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuppressionCreate'
+      responses:
+        '201':
+          description: Suppression created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Suppression'
+        '200':
+          description: Email already suppressed (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Suppression'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /suppressions/bulk:
+    post:
+      tags: [Suppressions]
+      summary: Bulk add manual suppressions
+      description: Add up to 1000 email addresses to the manual suppression list. Useful for importing suppression lists from a previous ESP.
+      operationId: bulkCreateSuppressions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkSuppressionCreate'
+      responses:
+        '200':
+          description: Bulk operation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkSuppressionResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /suppressions/{email}:
+    parameters:
+      - name: email
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Suppressions]
+      summary: Check suppression status
+      description: Check if an email address is suppressed and why. Returns 404 if the email is not suppressed.
+      operationId: getSuppression
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Suppression detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuppressionDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: Email is not suppressed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+    delete:
+      tags: [Suppressions]
+      summary: Remove manual suppression
+      description: Remove a manual suppression. Only suppressions with reason "manual" can be removed. System suppressions (bounces, complaints) cannot be removed via API.
+      operationId: deleteSuppression
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Suppression removed
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Cannot remove system suppression
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: No manual suppression found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List templates
+      description: List the templates in this workspace, newest first.
+      operationId: listTemplates
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, minimum: 1, maximum: 100 }
+        - name: starting_after
+          in: query
+          schema: { type: string }
+        - name: ending_before
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of templates
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Templates]
+      summary: Create a template
+      description: Create a template and, unless publish is false, publish its first version.
+      operationId: createTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, maxLength: 255 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateCreate' }
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /templates/render:
+    post:
+      tags: [Templates]
+      summary: Render a template
+      description: Render a stored template or an inline body against sample data, without sending anything.
+      operationId: renderTemplate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateRenderRequest' }
+      responses:
+        '200':
+          description: Rendered output
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateRenderResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /templates/{template_id}:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Templates]
+      summary: Get a template
+      description: Retrieve a template. Returns the draft content unless a version is given.
+      operationId: getTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: version
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: The template
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateWithContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Templates]
+      summary: Update a template draft
+      description: Update the draft. The draft is not used for sending until it is published.
+      operationId: updateTemplate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateUpdate' }
+      responses:
+        '200':
+          description: The updated template
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateWithContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Templates]
+      summary: Archive a template
+      description: Archive a template. Past messages that used it stay explicable, and it can no longer be sent with.
+      operationId: deleteTemplate
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Archived }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /templates/{template_id}/versions:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Templates]
+      summary: List template versions
+      description: List the immutable versions of a template, newest first.
+      operationId: listTemplateVersions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, minimum: 1, maximum: 100 }
+        - name: starting_after
+          in: query
+          description: Return versions after this cursor. Use next_cursor from the previous page.
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of versions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateVersionListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Templates]
+      summary: Publish a template version
+      description: Freeze the current draft as a new immutable version, and publish it unless publish is false.
+      operationId: createTemplateVersion
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, maxLength: 255 }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateVersionCreate' }
+      responses:
+        '201':
+          description: Version created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateVersion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /templates/{template_id}/versions/{version}:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: version
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Templates]
+      summary: Get a template version
+      description: Retrieve one immutable version, including its content.
+      operationId: getTemplateVersion
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateVersion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /templates/{template_id}/publish:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Templates]
+      summary: Publish an existing version
+      description: Point the template at an existing version. This is how a rollback is done.
+      operationId: publishTemplateVersion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplatePublishRequest' }
+      responses:
+        '200':
+          description: The template
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /analytics/summary:
+    get:
+      tags: [Analytics]
+      summary: Summarise sending
+      description: >
+        Totals for a time range. Counts only, never rates: the denominator for a rate depends
+        on what you are measuring, so compute it yourself from these numbers.
+      operationId: getAnalyticsSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: end
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: purpose
+          in: query
+          schema: { type: string, enum: [all, transactional, marketing], default: all }
+      responses:
+        '200':
+          description: Totals for the range
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /analytics/timeseries:
+    get:
+      tags: [Analytics]
+      summary: Sending over time
+      description: >
+        Counts bucketed by hour or day, in UTC. Accepted, delivered and failed are bucketed by
+        when the message was accepted. Opens, clicks and bounces are bucketed by when the event
+        happened, so in a given bucket bounced can exceed failed.
+      operationId: getAnalyticsTimeseries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: end
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: interval
+          in: query
+          schema: { type: string, enum: [hour, day], default: day }
+        - name: purpose
+          in: query
+          schema: { type: string, enum: [all, transactional, marketing], default: all }
+      responses:
+        '200':
+          description: Buckets for the range
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsTimeseries' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /inbound:
+    get:
+      tags: [Inbound]
+      summary: List received messages
+      description: List mail received at your verified domains, newest first.
+      operationId: listInboundEmails
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, minimum: 1, maximum: 100 }
+        - name: starting_after
+          in: query
+          schema: { type: string }
+        - name: ending_before
+          in: query
+          schema: { type: string }
+        - name: spam_action
+          in: query
+          schema: { $ref: '#/components/schemas/SpamAction' }
+        - name: domain_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of received messages
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboundEmailListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /inbound/{inbound_id}:
+    parameters:
+      - name: inbound_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Inbound]
+      summary: Get a received message
+      description: Metadata for one received message. Use the content endpoint for the body.
+      operationId: getInboundEmail
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The message
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboundEmail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Inbound]
+      summary: Delete a received message
+      operationId: deleteInboundEmail
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /inbound/{inbound_id}/content:
+    parameters:
+      - name: inbound_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Inbound]
+      summary: Get received message content
+      description: The parsed body of a received message, decrypted on read.
+      operationId: getInboundEmailContent
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The parsed content
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboundEmailContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /inbound/{inbound_id}/raw:
+    parameters:
+      - name: inbound_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Inbound]
+      summary: Get the raw message
+      description: The original RFC 5322 message, exactly as it was received.
+      operationId: getInboundEmailRaw
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The raw message
+          content:
+            message/rfc822:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /inbound/{inbound_id}/release:
+    parameters:
+      - name: inbound_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Inbound]
+      summary: Release a quarantined message
+      description: Clear the spam verdict on a message the filter held back.
+      operationId: releaseInboundEmail
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The released message
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboundEmail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /broadcasts:
+    get:
+      tags: [Broadcasts]
+      summary: List broadcasts
+      description: List broadcasts in this workspace, newest first.
+      operationId: listBroadcasts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, minimum: 1, maximum: 100 }
+        - name: starting_after
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/BroadcastStatus' }
+      responses:
+        '200':
+          description: A page of broadcasts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BroadcastListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Broadcasts]
+      summary: Create a broadcast
+      description: >
+        Create a broadcast as a draft. Sending is a separate call, so you can review it first.
+        Authoring beyond subject and body stays in the dashboard.
+      operationId: createBroadcast
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, maxLength: 255 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BroadcastCreate' }
+      responses:
+        '201':
+          description: Broadcast created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Broadcast' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /broadcasts/{broadcast_id}:
+    parameters:
+      - name: broadcast_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Broadcasts]
+      summary: Get a broadcast
+      operationId: getBroadcast
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The broadcast
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Broadcast' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Broadcasts]
+      summary: Update a broadcast
+      description: Update a draft or reschedule a scheduled broadcast.
+      operationId: updateBroadcast
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BroadcastUpdate' }
+      responses:
+        '200':
+          description: The updated broadcast
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Broadcast' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Broadcasts]
+      summary: Archive a broadcast
+      operationId: deleteBroadcast
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Archived }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /broadcasts/{broadcast_id}/send:
+    parameters:
+      - name: broadcast_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Broadcasts]
+      summary: Send a broadcast
+      description: >
+        Start sending. Pre-send checks run first, and a broadcast that fails them is rejected
+        with 422 listing each failure. Delivery is carried out in the background.
+      operationId: sendBroadcast
+      security:
+        - bearerAuth: []
+      responses:
+        '202':
+          description: Sending started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Broadcast' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /broadcasts/{broadcast_id}/test:
+    parameters:
+      - name: broadcast_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Broadcasts]
+      summary: Send a test of a broadcast
+      description: Send the broadcast to a handful of addresses for review. Up to 5 recipients.
+      operationId: sendBroadcastTest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BroadcastTestRequest' }
+      responses:
+        '202':
+          description: Test send accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BroadcastTestResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /broadcasts/{broadcast_id}/cancel:
+    parameters:
+      - name: broadcast_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Broadcasts]
+      summary: Cancel a broadcast
+      description: Stop a scheduled or sending broadcast. Messages already handed off still go out.
+      operationId: cancelBroadcast
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The cancelled broadcast
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Broadcast' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  responses:
+    Unauthorized:
+      description: Authentication failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/APIError' }
+    Forbidden:
+      description: The API key may not perform this operation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/APIError' }
+    NotFound:
+      description: No such record
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/APIError' }
+    Conflict:
+      description: The request conflicts with the current state
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/APIError' }
+    ValidationFailed:
+      description: One or more fields are invalid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/APIError' }
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+        RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+        RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+        RateLimit-Policy: { $ref: '#/components/headers/RateLimitPolicy' }
+        RateLimit-Scope: { $ref: '#/components/headers/RateLimitScope' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/APIError' }
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/APIError' }
+  headers:
+    RateLimitLimit:
+      description: >
+        Requests permitted in the current window. Sent on every authenticated response;
+        absent when the request failed authentication, because the limit is per workspace
+        and the workspace is not yet known.
+      schema: { type: integer }
+    RateLimitRemaining:
+      description: Requests still permitted in the current window. Sent on every authenticated response.
+      schema: { type: integer }
+    RateLimitReset:
+      description: >
+        Seconds until another request is permitted, or 0 when one already is.
+        Sent on every authenticated response.
+      schema: { type: integer }
+    RateLimitPolicy:
+      description: >
+        The active policy as "{burst};w={window}", where window is in seconds.
+        Sent on every authenticated response.
+      schema: { type: string }
+    RateLimitScope:
+      description: >
+        What the limit applies to. Always workspace, so a limiter inside one process
+        cannot coordinate every worker. Sent on every authenticated response.
+      schema: { type: string }
+    RetryAfter:
+      description: >
+        Seconds to wait before retrying. Sent on rate_limit_exceeded, on
+        daily_quota_exceeded as the seconds remaining until the next UTC midnight, and
+        on idempotency_in_progress. Not sent on monthly_quota_exceeded.
+      schema: { type: integer }
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 'API key with tix_live_ or tix_test_ prefix. Legacy tix_ prefix also accepted.'
+  schemas:
+    MailboxAddress:
+      oneOf:
+        - type: string
+          description: Email address as a plain string.
+        - type: object
+          required:
+            - email
+          properties:
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+          description: Email address with optional display name.
+    Attachment:
+      type: object
+      required:
+        - filename
+        - content
+        - content_type
+      properties:
+        filename:
+          type: string
+          description: Filename of the attachment.
+        content:
+          type: string
+          description: Base64-encoded file content.
+        content_type:
+          type: string
+          description: MIME type of the attachment.
+        content_disposition:
+          type: string
+          enum:
+            - attachment
+            - inline
+          default: attachment
+          description: Content disposition. Use "inline" for CID-referenced images.
+        content_id:
+          type: string
+          description: Content-ID for inline images (e.g. "logo"). Referenced in HTML as cid:logo.
+    AttachmentRef:
+      type: object
+      required:
+        - attachment_id
+      properties:
+        attachment_id:
+          type: string
+          description: ID of a previously uploaded attachment.
+    AttachmentURL:
+      type: object
+      required:
+        - filename
+        - content_url
+      properties:
+        filename:
+          type: string
+          description: Filename for the attachment.
+        content_url:
+          type: string
+          format: uri
+          description: URL to fetch the attachment from.
+        content_type:
+          type: string
+          description: MIME type. Auto-detected from response if omitted.
+    TrackingOptions:
+      type: object
+      properties:
+        opens:
+          type: boolean
+          description: Override domain-level open tracking for this email.
+        clicks:
+          type: boolean
+          description: Override domain-level click tracking for this email.
+        clicks_exclude:
+          type: array
+          items:
+            type: string
+          description: URL patterns to exclude from click tracking (e.g. "unsubscribe", "magic_link").
+    PreflightOptions:
+      type: object
+      properties:
+        spam_check:
+          type: boolean
+          description: Run spam scoring on the email content before sending.
+        validate:
+          type: boolean
+          description: Validate the email (DNS, formatting) before sending.
+    PreflightResult:
+      type: object
+      properties:
+        spam_score:
+          type: number
+          description: Spam score from content analysis.
+        spam_action:
+          type: string
+          description: Recommended action based on spam score.
+        validation_errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIErrorDetail'
+          description: Validation issues found during preflight.
+    SpamCheckResult:
+      type: object
+      properties:
+        score:
+          type: number
+          format: double
+          description: Rspamd spam score.
+        threshold:
+          type: number
+          format: double
+          description: Score threshold for spam classification.
+        verdict:
+          type: string
+          enum: [pass, warn, fail]
+          description: Overall verdict based on score.
+        action:
+          type: string
+          description: Recommended action from spam filter.
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpamRule'
+          description: Per-rule breakdown from spam filter.
+        details:
+          $ref: '#/components/schemas/SpamCheckDetails'
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpamIssue'
+          description: Custom content issues detected.
+    SpamRule:
+      type: object
+      properties:
+        name:
+          type: string
+        score:
+          type: number
+          format: double
+        description:
+          type: string
+        suggestion:
+          type: string
+    SpamIssue:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        suggestion:
+          type: string
+        severity:
+          type: string
+          enum: [warning, error]
+    SpamCheckDetails:
+      type: object
+      properties:
+        has_text_part:
+          type: boolean
+        has_html_part:
+          type: boolean
+        has_list_unsubscribe:
+          type: boolean
+        link_count:
+          type: integer
+        image_count:
+          type: integer
+        text_to_html_ratio:
+          type: number
+          format: double
+    Email:
+      type: object
+      required:
+        - id
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        from:
+          type: string
+        to:
+          type: array
+          items:
+            type: string
+        subject:
+          type: string
+        cc:
+          type: array
+          items:
+            type: string
+        bcc:
+          type: array
+          items:
+            type: string
+        reply_to:
+          type: string
+        text:
+          type: string
+        html:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        template_id:
+          type: string
+        template_data:
+          type: object
+          additionalProperties:
+            type: string
+        template_version:
+          type: integer
+          description: The template version this message was rendered from.
+        mode:
+          type: string
+          enum: [live, test]
+          description: Whether the email was submitted with a live or a test API key. Test emails are simulated and never delivered.
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          description: Arbitrary JSON metadata (up to 10KB).
+        tracking:
+          $ref: '#/components/schemas/TrackingOptions'
+        scheduled_at:
+          type: string
+          format: date-time
+          description: When the email is scheduled to be sent (ISO 8601).
+        batch_id:
+          type: string
+          description: Batch ID if this email was part of a batch send.
+        preflight_result:
+          $ref: '#/components/schemas/PreflightResult'
+        status:
+          type: string
+          enum:
+            - pending
+            - scheduled
+            - sent
+            - delivered
+            - failed
+            - cancelled
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailEvent'
+          description: Timeline of email events (delivery, opens, clicks, bounces). Only populated on single email retrieval.
+        error_message:
+          type: string
+          description: Error details if delivery failed.
+        click_count:
+          type: integer
+          description: Number of tracked link clicks.
+        open_count:
+          type: integer
+          description: Number of tracked opens.
+        delivery_time_ms:
+          type: integer
+          format: int64
+          description: Milliseconds from creation to delivery.
+    EmailEvent:
+      type: object
+      required:
+        - status
+        - created_at
+      properties:
+        status:
+          type: string
+          description: Email status at the time of this event.
+        created_at:
+          type: string
+          format: date-time
+          description: When this event occurred.
+        event_type:
+          type: string
+          description: Specific event type (e.g. opened, clicked, bounced).
+    Event:
+      type: object
+      required:
+        - id
+        - type
+        - created_at
+        - data
+      properties:
+        id:
+          type: string
+          description: Unique event identifier.
+        type:
+          $ref: '#/components/schemas/EventType'
+        email_id:
+          type: string
+          description: >
+            ID of the email this event belongs to. Present for every email.* event and
+            absent for email.received and webhook.test.
+        inbound_id:
+          type: string
+          description: ID of the inbound message. Present only on email.received.
+        created_at:
+          type: string
+          format: date-time
+          description: When the event occurred.
+        data:
+          type: object
+          additionalProperties: true
+          description: |
+            Event-specific data. Structure varies by event type:
+            - **delivered**: to, from, subject, delivered_at, smtp_code, mx_host
+            - **bounced**: to, bounce_type, bounce_subtype, smtp_code, enhanced_status_code, provider, recommended_action, original_error
+            - **opened**: to, ip_address, user_agent, open_source
+            - **clicked**: to, url, ip_address, user_agent, click_count
+            - **complained**: to, bounce_type
+            - **sent/failed/delayed**: event metadata
+    EventListResponse:
+      type: object
+      required:
+        - data
+        - has_more
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        has_more:
+          type: boolean
+          description: Whether there are more items available after this page.
+        next_cursor:
+          type: string
+          description: Cursor to use as starting_after for the next page.
+    EmailCreate:
+      type: object
+      required:
+        - from
+        - to
+        - subject
+      properties:
+        from:
+          $ref: '#/components/schemas/MailboxAddress'
+          description: Sender email address as a string or {email, name} object.
+        to:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Recipient email address(es).
+        subject:
+          type: string
+        cc:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        bcc:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        reply_to:
+          $ref: '#/components/schemas/MailboxAddress'
+          description: Reply-to address as a string or {email, name} object.
+        text:
+          type: string
+        html:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        template_id:
+          type: string
+        template_data:
+          type: object
+          additionalProperties:
+            type: string
+        template_version:
+          type: integer
+          minimum: 1
+          description: Render a specific template version instead of the published one. Use this for safe deploys.
+        attachments:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/Attachment'
+              - $ref: '#/components/schemas/AttachmentRef'
+              - $ref: '#/components/schemas/AttachmentURL'
+          description: File attachments. Supports inline content, pre-uploaded references, and URL-based.
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 50
+          description: String tags for categorization. Indexed and queryable.
+        metadata:
+          type: object
+          description: Arbitrary JSON metadata (up to 10KB). Stored and returned in events/webhooks.
+        tracking:
+          $ref: '#/components/schemas/TrackingOptions'
+        preflight:
+          $ref: '#/components/schemas/PreflightOptions'
+        scheduled_at:
+          type: string
+          format: date-time
+          description: Schedule the email for future delivery (ISO 8601). Must be in the future and within 72 hours.
+        allow_duplicate:
+          type: boolean
+          description: Set to true to bypass duplicate detection. Use for legitimate cases like OTP resends.
+    EmailUpdate:
+      type: object
+      properties:
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Reschedule the email. Set to null to send immediately. Must be in the future and within 72 hours.
+    EmailBatchRequest:
+      type: object
+      required:
+        - emails
+      properties:
+        validation:
+          type: string
+          enum: [strict, permissive]
+          default: strict
+          description: >
+            strict rejects the whole batch with 422 if any message is invalid, and sends nothing.
+            permissive sends the valid messages and reports the rest per index in errors.
+        emails:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailCreate'
+          minItems: 1
+          maxItems: 100
+          description: Array of emails to send (1-100).
+    EmailBatchResponse:
+      type: object
+      required:
+        - batch_id
+        - results
+      properties:
+        batch_id:
+          type: string
+          description: Unique identifier for the batch.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailBatchResult'
+        errors:
+          type: array
+          description: Present in permissive mode only. One entry per message that was not sent.
+          items:
+            $ref: '#/components/schemas/EmailBatchError'
+    EmailBatchError:
+      type: object
+      required:
+        - index
+        - code
+        - message
+      properties:
+        index:
+          type: integer
+          description: Position of the message in the request array.
+        code:
+          type: string
+          description: Machine-readable reason, matching the error type catalogue.
+        message:
+          type: string
+    EmailBatchResult:
+      type: object
+      required:
+        - index
+        - status
+      properties:
+        index:
+          type: integer
+          description: Zero-based index of the email in the request array.
+        id:
+          type: string
+          description: Email ID (present on success).
+        status:
+          type: string
+          enum:
+            - pending
+            - scheduled
+            - failed
+        error:
+          $ref: '#/components/schemas/APIError'
+          description: Error details (present on failure).
+    AttachmentUpload:
+      type: object
+      required:
+        - filename
+        - content
+        - content_type
+      properties:
+        filename:
+          type: string
+        content:
+          type: string
+          description: Base64-encoded file content.
+        content_type:
+          type: string
+    AttachmentResponse:
+      type: object
+      required:
+        - id
+        - filename
+        - content_type
+        - size
+        - expires_at
+      properties:
+        id:
+          type: string
+          description: Attachment ID for use in email sends.
+        filename:
+          type: string
+        content_type:
+          type: string
+        size:
+          type: integer
+          description: Size in bytes.
+        expires_at:
+          type: string
+          format: date-time
+          description: When this pre-uploaded attachment expires (24 hours from upload).
+    CancelEmailResponse:
+      type: object
+      required:
+        - cancelled
+      properties:
+        cancelled:
+          type: boolean
+          description: Whether the email was successfully cancelled.
+        reason:
+          type: string
+          description: Reason why the email could not be cancelled (present when cancelled is false).
+    EmailListResponse:
+      type: object
+      required:
+        - data
+        - has_more
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Email'
+        has_more:
+          type: boolean
+          description: Whether there are more items available after this page.
+        next_cursor:
+          type: string
+          description: Cursor to use as starting_after for the next page.
+    Template:
+      type: object
+      required: [id, name, latest_version, created_at, updated_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        subject: { type: string }
+        latest_version:
+          type: integer
+          description: The highest version number that exists.
+        published_version:
+          type: integer
+          description: The version used when a send does not name one. Absent until a version is published.
+        archived_at: { type: string, format: date-time }
+        variables:
+          type: array
+          items: { type: string }
+          description: Variable names found in the draft.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TemplateWithContent:
+      allOf:
+        - $ref: '#/components/schemas/Template'
+        - type: object
+          properties:
+            version:
+              type: integer
+              description: The version this content came from. Absent when the draft is returned.
+            html: { type: string }
+            text: { type: string }
+    TemplateCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 80 }
+        subject: { type: string, maxLength: 255 }
+        html: { type: string }
+        text: { type: string }
+        publish:
+          type: boolean
+          default: true
+          description: Publish the first version immediately. Set false to create a draft only.
+    TemplateUpdate:
+      type: object
+      properties:
+        name: { type: string, maxLength: 80 }
+        subject: { type: string, maxLength: 255 }
+        html: { type: string }
+        text: { type: string }
+    TemplateVersion:
+      type: object
+      required: [version, checksum, created_at]
+      properties:
+        version: { type: integer }
+        subject: { type: string }
+        html: { type: string }
+        text: { type: string }
+        variables:
+          type: array
+          items: { type: string }
+        checksum: { type: string }
+        created_at: { type: string, format: date-time }
+    TemplateVersionCreate:
+      type: object
+      properties:
+        subject: { type: string, maxLength: 255 }
+        html: { type: string }
+        text: { type: string }
+        publish:
+          type: boolean
+          default: true
+          description: Make this the published version. Set false to record it without switching sends to it.
+    TemplatePublishRequest:
+      type: object
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+    TemplateRenderRequest:
+      type: object
+      properties:
+        template_id: { type: string }
+        version: { type: integer, minimum: 1 }
+        subject: { type: string }
+        html: { type: string }
+        text: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+      description: Supply either template_id, or an inline subject, html and text. Not both.
+    TemplateRenderResult:
+      type: object
+      properties:
+        subject: { type: string }
+        html: { type: string }
+        text: { type: string }
+        variables:
+          type: array
+          items: { type: string }
+        missing_variables:
+          type: array
+          items: { type: string }
+          description: Variables the template uses without a default, that were not supplied in data.
+    TemplateListResponse:
+      type: object
+      required: [data, has_more]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Template' }
+        has_more: { type: boolean }
+        next_cursor: { type: string }
+    TemplateVersionListResponse:
+      type: object
+      required: [data, has_more]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TemplateVersion' }
+        has_more: { type: boolean }
+        next_cursor: { type: string }
+    AnalyticsCounts:
+      type: object
+      required: [accepted, delivered, failed, bounced, unique_opens, unique_clicks, raw_opens, raw_clicks, machine_opens, apple_mpp_opens]
+      properties:
+        accepted:
+          type: integer
+          format: int64
+          description: Messages accepted for delivery. This is not the same as handed to a mail server.
+        delivered: { type: integer, format: int64 }
+        failed:
+          type: integer
+          format: int64
+          description: Messages that were not delivered. Bounces are included in this number.
+        bounced:
+          type: integer
+          format: int64
+          description: Bounce events. A subset of failed, not an addition to it.
+        unique_opens:
+          type: integer
+          format: int64
+          description: First qualifying open per message, excluding machine opens.
+        unique_clicks: { type: integer, format: int64 }
+        raw_opens: { type: integer, format: int64 }
+        raw_clicks: { type: integer, format: int64 }
+        machine_opens:
+          type: integer
+          format: int64
+          description: Opens attributed to scanners and privacy proxies rather than a person.
+        apple_mpp_opens: { type: integer, format: int64 }
+    AnalyticsSummary:
+      type: object
+      required: [start, end, as_of, counts]
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        as_of:
+          type: string
+          format: date-time
+          description: When the underlying aggregate was last reconciled.
+        counts: { $ref: '#/components/schemas/AnalyticsCounts' }
+    AnalyticsBucket:
+      type: object
+      required: [start, counts]
+      properties:
+        start: { type: string, format: date-time }
+        counts: { $ref: '#/components/schemas/AnalyticsCounts' }
+    AnalyticsTimeseries:
+      type: object
+      required: [start, end, interval, as_of, data]
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        interval: { type: string, enum: [hour, day] }
+        as_of: { type: string, format: date-time }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AnalyticsBucket' }
+    SpamAction:
+      type: string
+      enum: [no_action, greylist, add_header, rewrite_subject, soft_reject, reject, discard, quarantine]
+    InboundEmail:
+      type: object
+      required: [id, domain_id, from, to, subject, spam_score, spam_action, size_bytes, attachment_count, received_at]
+      properties:
+        id: { type: string }
+        domain_id: { type: string }
+        from: { type: string }
+        to:
+          type: array
+          items: { type: string }
+          description: Every address this message was addressed to at your domains.
+        subject: { type: string }
+        message_id:
+          type: string
+          description: The sender's own Message-ID header, for correlating with your logs.
+        spam_score: { type: number, format: double }
+        spam_action: { $ref: '#/components/schemas/SpamAction' }
+        size_bytes: { type: integer, format: int64 }
+        attachment_count: { type: integer }
+        received_at: { type: string, format: date-time }
+    InboundEmailContent:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        subject: { type: string }
+        from: { type: string }
+        to:
+          type: array
+          items: { type: string }
+        html: { type: string }
+        text: { type: string }
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/InboundEmailAttachment' }
+    InboundEmailAttachment:
+      type: object
+      properties:
+        filename: { type: string }
+        content_type: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        content_id: { type: string }
+    InboundEmailListResponse:
+      type: object
+      required: [data, has_more]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/InboundEmail' }
+        has_more: { type: boolean }
+        next_cursor: { type: string }
+    BroadcastStatus:
+      type: string
+      enum: [draft, scheduled, sending, paused, cancelled, completed]
+    BroadcastStats:
+      type: object
+      properties:
+        accepted: { type: integer, format: int64 }
+        delivered: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+        bounced: { type: integer, format: int64 }
+        unique_opens: { type: integer, format: int64 }
+        unique_clicks: { type: integer, format: int64 }
+    Broadcast:
+      type: object
+      required: [id, status, subject, from, created_at, updated_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/BroadcastStatus' }
+        subject: { type: string }
+        from: { type: string }
+        from_name: { type: string }
+        audience_ids:
+          type: array
+          items: { type: string }
+          description: Tag ids the broadcast is addressed to. Empty means every subscribed contact.
+        scheduled_at: { type: string, format: date-time }
+        sent_at: { type: string, format: date-time }
+        total_recipients: { type: integer, format: int64 }
+        stats: { $ref: '#/components/schemas/BroadcastStats' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    BroadcastCreate:
+      type: object
+      required: [subject, from]
+      properties:
+        subject: { type: string, maxLength: 255 }
+        from: { type: string }
+        from_name: { type: string }
+        audience_ids:
+          type: array
+          items: { type: string }
+        html: { type: string }
+        text: { type: string }
+        preheader: { type: string }
+        scheduled_at: { type: string, format: date-time }
+    BroadcastUpdate:
+      type: object
+      properties:
+        subject: { type: string, maxLength: 255 }
+        html: { type: string }
+        text: { type: string }
+        preheader: { type: string }
+        scheduled_at: { type: string, format: date-time }
+    BroadcastTestRequest:
+      type: object
+      required: [recipients]
+      properties:
+        recipients:
+          description: |
+            Each address must belong to a confirmed member of this workspace. A broadcast test
+            is a live send from a verified domain, so it may not be aimed at arbitrary addresses.
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { type: string, format: email }
+    BroadcastTestResult:
+      type: object
+      properties:
+        accepted: { type: integer }
+        recipients:
+          type: array
+          items: { type: string }
+    BroadcastListResponse:
+      type: object
+      required: [data, has_more]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Broadcast' }
+        has_more: { type: boolean }
+        next_cursor: { type: string }
+    APIError:
+      type: object
+      required:
+        - status
+        - type
+        - message
+        - request_id
+      properties:
+        status:
+          type: integer
+          description: HTTP status code.
+        type:
+          type: string
+          enum:
+            - invalid_request
+            - validation_error
+            - unsupported_media_type
+            - payload_too_large
+            - method_not_allowed
+            - not_found
+            - authentication_failed
+            - api_key_expired
+            - insufficient_scope
+            - api_key_ip_restricted
+            - domain_scope_restricted
+            - workspace_suspended
+            - test_mode_restricted
+            - domain_not_found
+            - domain_not_verified
+            - invalid_from_address
+            - duplicate_detected
+            - invalid_schedule
+            - email_not_cancellable
+            - batch_too_large
+            - template_not_found
+            - template_render_failed
+            - attachment_not_found
+            - attachment_expired
+            - attachment_too_large
+            - attachment_fetch_failed
+            - rate_limit_exceeded
+            - daily_quota_exceeded
+            - monthly_quota_exceeded
+            - idempotency_conflict
+            - idempotency_in_progress
+            - api_key_in_use
+            - webhook_limit_reached
+            - webhook_url_not_allowed
+            - internal_error
+            - service_unavailable
+          description: Machine-readable error type.
+        message:
+          type: string
+          description: Human-readable error message.
+        request_id:
+          type: string
+          description: Unique request identifier for support debugging.
+        doc_url:
+          type: string
+          description: Link to documentation for this error type.
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIErrorDetail'
+          description: Additional error details for validation errors.
+    APIErrorDetail:
+      type: object
+      required:
+        - field
+        - message
+        - code
+      properties:
+        field:
+          type: string
+          description: The field that caused the error.
+        message:
+          type: string
+          description: Human-readable description of the field error.
+        code:
+          type: string
+          description: Machine-readable error code for this field.
+    DomainCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Fully qualified domain name.
+          example: "notifications.example.com"
+        region:
+          type: string
+          description: Sending infrastructure region.
+          default: "eu-west-1"
+          example: "eu-west-1"
+        sending_subdomain:
+          type: string
+          maxLength: 63
+          description: >-
+            Label the SPF and inbound MX records are published under, and the domain part of
+            the Return-Path this domain sends with. Omit to use the default `tix`. Send an
+            empty string to publish those records on the domain itself.
+          example: "tix"
+    DomainUpdate:
+      type: object
+      properties:
+        open_tracking:
+          type: object
+          properties:
+            marketing:
+              type: boolean
+            transactional:
+              type: boolean
+        click_tracking:
+          type: object
+          properties:
+            marketing:
+              type: boolean
+            transactional:
+              type: boolean
+    Domain:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - region
+        - created_at
+        - dns_records
+      properties:
+        id:
+          type: string
+          description: Unique domain identifier.
+        name:
+          type: string
+          description: Fully qualified domain name.
+          example: "notifications.example.com"
+        status:
+          type: string
+          enum:
+            - unverified
+            - verifying
+            - active
+          description: Domain verification status.
+        region:
+          type: string
+          description: Sending infrastructure region.
+          example: "eu-west-1"
+        open_tracking:
+          type: object
+          properties:
+            marketing:
+              type: boolean
+            transactional:
+              type: boolean
+        click_tracking:
+          type: object
+          properties:
+            marketing:
+              type: boolean
+            transactional:
+              type: boolean
+        last_dns_check_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When DNS records were last checked.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        dns_records:
+          type: array
+          items:
+            $ref: '#/components/schemas/DnsRecord'
+          description: DNS records that need to be configured for this domain.
+        sending_subdomain:
+          type: string
+          description: >-
+            Label the SPF and inbound MX records are published under, and the domain part of
+            the Return-Path. Empty means those records sit on the domain itself.
+          example: "tix"
+      example:
+        id: "d_abc123"
+        name: "notifications.example.com"
+        status: "unverified"
+        region: "eu-west-1"
+        open_tracking:
+          marketing: true
+          transactional: false
+        click_tracking:
+          marketing: true
+          transactional: false
+        created_at: "2026-04-21T10:00:00Z"
+        updated_at: "2026-04-21T10:00:00Z"
+        dns_records:
+          - type: "TXT"
+            host: "default.notifications"
+            value: "v=spf1 include:send.epostix.com ~all"
+            status: "unverified"
+            purpose: "sending"
+            required: true
+          - type: "TXT"
+            host: "send._domainkey.notifications"
+            value: "v=DKIM1; k=rsa; p=MIIBIjANBgkqhki..."
+            status: "unverified"
+            purpose: "sending"
+            required: true
+          - type: "TXT"
+            host: "_dmarc.notifications"
+            value: "v=DMARC1; p=none;"
+            status: "unverified"
+            purpose: "sending"
+            required: false
+          - type: "MX"
+            host: "default.notifications"
+            value: "mxa.send.epostix.com"
+            status: "unverified"
+            priority: 10
+            purpose: "receiving"
+            required: false
+    DnsRecord:
+      type: object
+      required:
+        - type
+        - host
+        - value
+        - status
+        - purpose
+        - required
+      properties:
+        type:
+          type: string
+          enum:
+            - TXT
+            - MX
+          description: DNS record type.
+        host:
+          type: string
+          description: >-
+            Host to set this record on, relative to the zone. `@` means the zone root.
+          example: "send._domainkey.notifications.example.com"
+        value:
+          type: string
+          description: Expected DNS record value.
+          example: "v=DKIM1; k=rsa; p=MIIBIj..."
+        status:
+          type: string
+          enum:
+            - unverified
+            - verifying
+            - active
+            - failed
+          description: Verification status of this record.
+        priority:
+          type: integer
+          description: MX record priority. Only present for MX records.
+          example: 10
+        purpose:
+          type: string
+          enum:
+            - sending
+            - receiving
+          description: Whether this record is for sending (SPF, DKIM, DMARC) or receiving (MX).
+        kind:
+          type: string
+          enum:
+            - spf
+            - dkim
+            - dmarc
+            - mx_inbound
+          description: Semantic kind of the record (so clients can label rows without parsing values).
+        last_verification_error:
+          type: string
+          description: Human-readable explanation of the most recent verification failure. Empty when verified.
+        required:
+          type: boolean
+          description: Whether this record must be verified for the domain to become active.
+    DomainListResponse:
+      type: object
+      required:
+        - data
+        - has_more
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Domain'
+        has_more:
+          type: boolean
+          description: Whether there are more items available after this page.
+        next_cursor:
+          type: string
+          description: Cursor to use as starting_after for the next page.
+    Contact:
+      type: object
+      required:
+        - id
+        - email
+        - status
+        - source
+        - engagement_tier
+        - tags
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Unique contact identifier.
+        email:
+          type: string
+          format: email
+          description: Contact email address.
+        name:
+          type: string
+          description: Contact display name.
+        status:
+          type: string
+          enum:
+            - subscribed
+            - unsubscribed
+            - cleaned
+          description: Subscription status (read-only, computed by the system).
+        source:
+          type: string
+          enum:
+            - api
+            - bulk_api
+            - csv_import
+            - smtp
+            - form
+            - unknown
+          description: How the contact was created (read-only).
+        engagement_tier:
+          type: string
+          enum:
+            - no_data
+            - new
+            - engaged
+            - at_risk
+            - inactive
+            - cold
+          description: Engagement tier based on email activity (read-only, computed by the system).
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+          description: Tags assigned to this contact.
+        campaigns_received_count:
+          type: integer
+          description: Number of campaigns this contact has received (read-only).
+        last_activity_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last activity timestamp (read-only).
+        created_at:
+          type: string
+          format: date-time
+          description: When the contact was created.
+        updated_at:
+          type: string
+          format: date-time
+          description: When the contact was last updated.
+    ContactCreate:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Contact email address.
+        name:
+          type: string
+          description: Contact display name.
+        tag_ids:
+          type: array
+          items:
+            type: string
+          description: Tag IDs to assign to the contact.
+    ContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Contact display name.
+        tag_ids:
+          type: array
+          items:
+            type: string
+          description: Tag IDs to assign. Replaces existing tag assignments.
+    ContactUpsert:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Contact display name.
+        tag_ids:
+          type: array
+          items:
+            type: string
+          description: Tag IDs to assign to the contact.
+    ContactListResponse:
+      type: object
+      required:
+        - data
+        - has_more
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contact'
+        has_more:
+          type: boolean
+          description: Whether there are more items available after this page.
+        next_cursor:
+          type: string
+          description: Cursor to use as starting_after for the next page.
+    BulkContactCreateRequest:
+      type: object
+      required:
+        - contacts
+      properties:
+        contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactCreate'
+          minItems: 1
+          maxItems: 1000
+          description: Contacts to create (maximum 1000).
+    BulkContactCreateResponse:
+      type: object
+      required:
+        - created
+        - updated
+        - failed
+      properties:
+        created:
+          type: integer
+          description: Number of contacts created.
+        updated:
+          type: integer
+          description: Number of existing contacts updated.
+        failed:
+          type: integer
+          description: Number of contacts that failed to process.
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+                description: Index of the failed contact in the request array.
+              email:
+                type: string
+                description: Email address of the failed contact.
+              message:
+                type: string
+                description: Error message.
+              code:
+                type: string
+                description: Error code.
+          description: Details of failed contacts.
+    Tag:
+      type: object
+      required:
+        - id
+        - name
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Unique tag identifier.
+        name:
+          type: string
+          description: Tag name.
+        color:
+          type: string
+          nullable: true
+          description: Tag color as hex string (e.g., "#3B82F6").
+        created_at:
+          type: string
+          format: date-time
+          description: When the tag was created.
+        updated_at:
+          type: string
+          format: date-time
+          description: When the tag was last updated.
+    TagCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Tag name (1-100 characters).
+          minLength: 1
+          maxLength: 100
+        color:
+          type: string
+          pattern: "^#[0-9a-fA-F]{6}$"
+          description: Tag color as hex string (e.g., "#3B82F6").
+    TagListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+    PermissionScope:
+      type: string
+      enum:
+        - sending
+        - 'emails:read'
+        - 'domains:manage'
+        - 'contacts:manage'
+        - 'webhooks:manage'
+        - 'analytics:read'
+        - 'api-keys:manage'
+        - 'suppressions:read'
+        - 'suppressions:manage'
+        - 'templates:read'
+        - 'templates:manage'
+        - 'inbound:read'
+        - 'inbound:manage'
+        - 'broadcasts:read'
+        - 'broadcasts:manage'
+        - 'broadcasts:send'
+        - '*'
+      description: >
+        Permission scope for an API key. Base scopes grant access to all domains.
+        Per-domain restriction is supported for `sending`, `emails:read`, and `domains:manage`
+        using the format `{scope}:domain:{domain_name}`, for example `sending:domain:acme.com`,
+        restricts sending to acme.com only. Multiple domain-scoped permissions can be combined.
+    APIKeyResponse:
+      type: object
+      required:
+        - id
+        - name
+        - environment
+        - permissions
+        - token_hint
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique API key identifier.
+        name:
+          type: string
+          description: Human-readable name for this key.
+        environment:
+          type: string
+          enum: [live, test]
+          description: Key environment, live or test.
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionScope'
+          description: Permission scopes granted to this key.
+        token_hint:
+          type: string
+          description: 'Masked token display, e.g. tix_live_...abcd1234'
+        whitelist_ips:
+          type: array
+          items:
+            type: string
+          description: Allowed IP addresses in CIDR notation.
+        created_at:
+          type: string
+          format: date-time
+          description: When the key was created.
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the key expires.
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the key was last used.
+        last_used_ip:
+          type: string
+          nullable: true
+          description: IP address of the last request using this key.
+        request_count:
+          type: integer
+          format: int64
+          description: Total number of requests made with this key.
+    APIKeyCreateRequest:
+      type: object
+      required:
+        - name
+        - expires_at
+      properties:
+        name:
+          type: string
+          description: Human-readable name for this key.
+        environment:
+          type: string
+          enum: [live, test]
+          default: live
+          description: Key environment.
+        expires_at:
+          type: string
+          format: date-time
+          description: When the key should expire.
+        whitelist_ips:
+          type: array
+          items:
+            type: string
+          description: Allowed IP addresses in CIDR notation.
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionScope'
+          description: 'Permission scopes. Defaults to ["*"] (full access) if omitted.'
+    APIKeyCreateResponse:
+      type: object
+      required:
+        - id
+        - name
+        - environment
+        - permissions
+        - token_hint
+        - token
+        - created_at
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        environment:
+          type: string
+          enum: [live, test]
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionScope'
+        token:
+          type: string
+          description: 'The full API key token. It is shown only once, so store it securely.'
+        token_hint:
+          type: string
+          description: Last 8 characters for future identification.
+        whitelist_ips:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+    APIKeyUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated name.
+        whitelist_ips:
+          type: array
+          items:
+            type: string
+          description: Updated IP whitelist.
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionScope'
+          description: Updated permissions.
+    APIKeyListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIKeyResponse'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+    APIKeyUsageLog:
+      type: object
+      required:
+        - id
+        - method
+        - path
+        - status_code
+        - created_at
+      properties:
+        id:
+          type: string
+        method:
+          type: string
+          description: HTTP method.
+        path:
+          type: string
+          description: Request path.
+        status_code:
+          type: integer
+          description: HTTP response status code.
+        ip_address:
+          type: string
+          nullable: true
+          description: Client IP address.
+        scope_used:
+          type: string
+          nullable: true
+          description: Permission scope required for this request.
+        created_at:
+          type: string
+          format: date-time
+    APIKeyUsageListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/APIKeyUsageLog'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+
+    EventType:
+      type: string
+      enum:
+        - email.sent
+        - email.delivered
+        - email.bounced
+        - email.opened
+        - email.clicked
+        - email.complained
+        - email.failed
+        - email.delayed
+        - email.received
+        - webhook.test
+      description: >
+        Every event type the platform emits. email.* events carry an email_id, except
+        email.received, which fires for inbound mail and carries an inbound_id.
+        webhook.test is delivered by the test-endpoint operation and cannot be subscribed to.
+        Treat this enum as open: clients must tolerate a value added by a later release
+        rather than failing to decode the surrounding object.
+
+    WebhookEventType:
+      type: string
+      enum:
+        - email.sent
+        - email.delivered
+        - email.bounced
+        - email.opened
+        - email.clicked
+        - email.complained
+        - email.failed
+        - email.delayed
+        - email.received
+      description: >
+        An event a webhook endpoint can subscribe to. This is the subscribable subset of
+        EventType; webhook.test is delivered to an endpoint but is not subscribable.
+    WebhookCreateRequest:
+      type: object
+      required:
+        - url
+        - events
+      properties:
+        url:
+          type: string
+          format: uri
+          description: The URL to receive webhook events.
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/WebhookEventType' }
+          description: Event types to subscribe to.
+        description:
+          type: string
+          description: Optional description of the webhook endpoint.
+        secret:
+          type: string
+          description: Signing secret. Auto-generated if omitted.
+
+    WebhookCreateResponse:
+      type: object
+      required:
+        - id
+        - url
+        - events
+        - active
+        - secret
+        - created_at
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/WebhookEventType' }
+        description:
+          type: string
+        active:
+          type: boolean
+        secret:
+          type: string
+          description: Plaintext signing secret. Shown only on create and rotate.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Webhook:
+      type: object
+      required:
+        - id
+        - url
+        - events
+        - active
+        - created_at
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/WebhookEventType' }
+        description:
+          type: string
+        active:
+          type: boolean
+        failure_count:
+          type: integer
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+        disabled_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WebhookUpdateRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/WebhookEventType' }
+        description:
+          type: string
+        active:
+          type: boolean
+
+    WebhookListResponse:
+      type: object
+      required:
+        - data
+        - has_more
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Webhook'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+
+    WebhookDeliveryLog:
+      type: object
+      required:
+        - id
+        - webhook_endpoint_id
+        - event_type
+        - event_id
+        - status
+        - attempt
+        - created_at
+      properties:
+        id:
+          type: string
+        webhook_endpoint_id:
+          type: string
+        event_type:
+          type: string
+        event_id:
+          type: string
+        payload:
+          type: object
+        status:
+          type: string
+          enum:
+            - pending
+            - success
+            - failed
+        response_code:
+          type: integer
+          nullable: true
+        response_body:
+          type: string
+          nullable: true
+        attempt:
+          type: integer
+        next_retry_at:
+          type: string
+          format: date-time
+          nullable: true
+        delivered_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    WebhookDeliveryLogListResponse:
+      type: object
+      required:
+        - data
+        - has_more
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookDeliveryLog'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+
+    WebhookBulkReplayRequest:
+      type: object
+      required:
+        - event_ids
+      properties:
+        event_ids:
+          type: array
+          items:
+            type: string
+          maxItems: 100
+
+    WebhookBulkReplayResponse:
+      type: object
+      required:
+        - replayed_count
+      properties:
+        replayed_count:
+          type: integer
+
+    WebhookRotateSecretResponse:
+      type: object
+      required:
+        - secret
+        - previous_secret_expires_at
+      properties:
+        secret:
+          type: string
+          description: New plaintext signing secret.
+        previous_secret_expires_at:
+          type: string
+          format: date-time
+          description: When the old secret stops being valid (24h from now).
+
+    Suppression:
+      type: object
+      required:
+        - id
+        - email
+        - reason
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Opaque identifier (also used as pagination cursor).
+        email:
+          type: string
+        reason:
+          type: string
+          enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe]
+        created_at:
+          type: string
+          format: date-time
+
+    SuppressionDetail:
+      type: object
+      required:
+        - email
+        - suppressed
+      properties:
+        email:
+          type: string
+        suppressed:
+          type: boolean
+        reason:
+          type: string
+          enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe]
+        created_at:
+          type: string
+          format: date-time
+        bounce_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/BounceHistoryEntry'
+
+    BounceHistoryEntry:
+      type: object
+      properties:
+        bounce_type:
+          type: string
+        bounce_subtype:
+          type: string
+        smtp_code:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    SuppressionListResponse:
+      type: object
+      required:
+        - data
+        - has_more
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Suppression'
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+
+    SuppressionCreate:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    BulkSuppressionCreate:
+      type: object
+      required:
+        - emails
+      properties:
+        emails:
+          type: array
+          items:
+            type: string
+            format: email
+          minItems: 1
+          maxItems: 1000
+
+    BulkSuppressionResponse:
+      type: object
+      required:
+        - processed
+        - failed
+      properties:
+        processed:
+          type: integer
+        failed:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkSuppressionError'
+
+    BulkSuppressionError:
+      type: object
+      properties:
+        index:
+          type: integer
+        email:
+          type: string
+        message:
+          type: string

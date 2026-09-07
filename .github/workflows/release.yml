@@ -1,0 +1,84 @@
+name: release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - run: go test -race ./...
+      - name: the tag must be a signed annotated tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          ref=$(gh api "repos/${{ github.repository }}/git/ref/tags/$tag")
+          kind=$(echo "$ref" | jq -r .object.type)
+          sha=$(echo "$ref" | jq -r .object.sha)
+
+          if [ "$kind" != "tag" ]; then
+            echo "$tag is a lightweight tag; a release must use a signed annotated tag"
+            exit 1
+          fi
+
+          object=$(gh api "repos/${{ github.repository }}/git/tags/$sha")
+          verified=$(echo "$object" | jq -r .verification.verified)
+
+          if [ "$verified" != "true" ]; then
+            echo "$tag is not a verified signed tag"
+            exit 1
+          fi
+      - name: the major version must match the module path
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          case "$tag" in
+            v0.*|v1.*)
+              if grep -qE '^module .*/v[0-9]+$' go.mod; then
+                echo "a v0/v1 tag must not have a major-version suffix in the module path"
+                exit 1
+              fi
+              ;;
+            *)
+              major=$(echo "$tag" | cut -d. -f1 | tr -d v)
+              grep -q "^module github.com/epostix/sdk-go/v$major$" go.mod || {
+                echo "module path does not carry /v$major"
+                exit 1
+              }
+              ;;
+          esac
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: warm the module proxy and record the checksum
+        env:
+          GOPROXY: proxy.golang.org
+          GOSUMDB: sum.golang.org
+        run: |
+          cd $(mktemp -d)
+          go mod init smoke
+          go get github.com/epostix/sdk-go@${{ github.event.release.tag_name }}
+          go list -m -versions github.com/epostix/sdk-go
+

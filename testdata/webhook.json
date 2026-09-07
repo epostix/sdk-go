@@ -1,0 +1,186 @@
+{
+  "description": "Webhook verification vectors computed against platform/internal/pkg/webhooksign/sign.go: hex(hmac_sha256(\"{ts}.{body}\", secret)), whsec_ prefix NOT stripped, Webhook-Id NOT signed.",
+  "now": 1788700005,
+  "toleranceSeconds": 300,
+  "cases": [
+    {
+      "name": "valid_delivered",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_1\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=39af36fd7095d78af96240268728b95d359d665aa152fffcee9a92dac3b8884f",
+      "expect": {
+        "valid": true,
+        "eventType": "email.delivered",
+        "eventId": "evt_1",
+        "variant": "EmailDeliveryEvent",
+        "matchedSecretIndex": 0
+      }
+    },
+    {
+      "name": "valid_inbound_carries_inbound_id",
+      "payload": "{\"id\":\"evt_2\",\"type\":\"email.received\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"inbound_id\":\"inb_1\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=53f4016a36fbc7628a67c6e2ad109351ac64e4a81caecb170fbbb78436e5fe51",
+      "expect": {
+        "valid": true,
+        "eventType": "email.received",
+        "variant": "InboundEmailEvent"
+      }
+    },
+    {
+      "name": "valid_webhook_test_is_a_known_type",
+      "payload": "{\"id\":\"evt_3\",\"type\":\"webhook.test\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"message\":\"This is a test webhook event from Epostix.\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=8ee331e250e5ddf5f0dc459a153ec24331b5daea661e695e91cf890defe41af1",
+      "expect": {
+        "valid": true,
+        "eventType": "webhook.test",
+        "variant": "WebhookTestEvent"
+      }
+    },
+    {
+      "name": "unknown_event_type_is_inspectable",
+      "payload": "{\"id\":\"evt_4\",\"type\":\"email.quarantined\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_9\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=9a2d23f12c3f63e3d2a9e180fa3d9887b4cb2b206c0e48d830450ade2fc16ea1",
+      "expect": {
+        "valid": true,
+        "eventType": "email.quarantined",
+        "variant": "UnknownWebhookEvent"
+      }
+    },
+    {
+      "name": "rotation_old_secret_still_verifies",
+      "payload": "{\"id\":\"evt_5\",\"type\":\"email.bounced\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_5\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA",
+        "whsec_cHJldmlvdXNrZXk"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=8921b14a964cb7a97185755ac4a9ebd61f627efa98585d8a74c06ed1754674b6",
+      "expect": {
+        "valid": true,
+        "matchedSecretIndex": 1
+      }
+    },
+    {
+      "name": "multiple_v1_values_during_rotation",
+      "payload": "{\"id\":\"evt_5\",\"type\":\"email.bounced\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_5\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=8921b14a964cb7a97185755ac4a9ebd61f627efa98585d8a74c06ed1754674b6,v1=7af1c033b333b6dc3ec6104eaa6dce697e068508a7a10ebbb48f79276eb2ac1f",
+      "expect": {
+        "valid": true,
+        "matchedSecretIndex": 0
+      }
+    },
+    {
+      "name": "altered_body_fails",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_X\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=39af36fd7095d78af96240268728b95d359d665aa152fffcee9a92dac3b8884f",
+      "expect": {
+        "valid": false,
+        "reason": "NoMatchingSignature"
+      }
+    },
+    {
+      "name": "altered_timestamp_fails",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_1\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700001,v1=39af36fd7095d78af96240268728b95d359d665aa152fffcee9a92dac3b8884f",
+      "expect": {
+        "valid": false,
+        "reason": "MalformedSignatureHeader"
+      },
+      "headerTimestamp": 1788700000
+    },
+    {
+      "name": "wrong_secret_fails",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_1\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_cHJldmlvdXNrZXk"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=39af36fd7095d78af96240268728b95d359d665aa152fffcee9a92dac3b8884f",
+      "expect": {
+        "valid": false,
+        "reason": "NoMatchingSignature"
+      }
+    },
+    {
+      "name": "stale_timestamp_fails",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_1\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788696400,
+      "signature": "t=1788696400,v1=9f78f72fdb0b187baac12c2368ccb2061c248971ddbc3f8958e8620dd07bdd19",
+      "expect": {
+        "valid": false,
+        "reason": "TimestampOutOfTolerance"
+      }
+    },
+    {
+      "name": "missing_signature_header_fails",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_1\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": null,
+      "expect": {
+        "valid": false,
+        "reason": "MissingSignatureHeader"
+      }
+    },
+    {
+      "name": "malformed_signature_header_fails",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_1\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "garbage",
+      "expect": {
+        "valid": false,
+        "reason": "MalformedSignatureHeader"
+      }
+    },
+    {
+      "name": "delivery_id_is_not_signed_and_not_the_dedup_key",
+      "payload": "{\"id\":\"evt_1\",\"type\":\"email.delivered\",\"created_at\":\"2026-09-06T10:00:00Z\",\"data\":{\"email_id\":\"eml_1\",\"to\":\"rae@example.com\"}}",
+      "secrets": [
+        "whsec_dGVzdHNlY3JldA"
+      ],
+      "ts": 1788700000,
+      "signature": "t=1788700000,v1=39af36fd7095d78af96240268728b95d359d665aa152fffcee9a92dac3b8884f",
+      "deliveryId": "whl_999",
+      "expect": {
+        "valid": true,
+        "eventId": "evt_1",
+        "deliveryId": "whl_999"
+      }
+    }
+  ]
+}

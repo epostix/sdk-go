@@ -1,0 +1,389 @@
+{
+  "description": "Request serialization. Each case asserts the exact JSON body bytes an SDK must produce.",
+  "cases": [
+    {
+      "name": "minimal_send",
+      "type": "EmailCreate",
+      "input": {
+        "from": "billing@mailer.example.com",
+        "to": "rae@example.com",
+        "subject": "Your receipt",
+        "text": "Confirmed."
+      },
+      "expected": {
+        "from": "billing@mailer.example.com",
+        "to": [
+          "rae@example.com"
+        ],
+        "subject": "Your receipt",
+        "text": "Confirmed."
+      }
+    },
+    {
+      "name": "recipients_always_array",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": [
+          "one@example.com",
+          "two@example.com"
+        ],
+        "subject": "s"
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "one@example.com",
+          "two@example.com"
+        ],
+        "subject": "s"
+      }
+    },
+    {
+      "name": "mailbox_narrowest_form_bare_string",
+      "type": "EmailCreate",
+      "input": {
+        "from": {
+          "email": "a@example.com"
+        },
+        "to": "b@example.com",
+        "subject": "s"
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s"
+      }
+    },
+    {
+      "name": "mailbox_object_when_display_name_present",
+      "type": "EmailCreate",
+      "input": {
+        "from": {
+          "email": "a@example.com",
+          "name": "Billing"
+        },
+        "to": "b@example.com",
+        "subject": "s"
+      },
+      "expected": {
+        "from": {
+          "email": "a@example.com",
+          "name": "Billing"
+        },
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s"
+      }
+    },
+    {
+      "name": "false_must_reach_the_wire",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "allow_duplicate": false
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "allow_duplicate": false
+      }
+    },
+    {
+      "name": "empty_string_must_reach_the_wire",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "text": ""
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "text": ""
+      }
+    },
+    {
+      "name": "omitted_field_is_absent",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s"
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s"
+      },
+      "absentKeys": [
+        "text",
+        "html",
+        "cc",
+        "bcc",
+        "allow_duplicate",
+        "scheduled_at"
+      ]
+    },
+    {
+      "name": "no_default_is_ever_sent",
+      "type": "Attachment",
+      "input": {
+        "filename": "r.pdf",
+        "content": "AAEC",
+        "content_type": "application/pdf"
+      },
+      "expected": {
+        "filename": "r.pdf",
+        "content": "AAEC",
+        "content_type": "application/pdf"
+      },
+      "absentKeys": [
+        "content_disposition"
+      ]
+    },
+    {
+      "name": "attachment_inline",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "attachments": [
+          {
+            "filename": "r.pdf",
+            "content": "AAEC",
+            "content_type": "application/pdf"
+          }
+        ]
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "attachments": [
+          {
+            "filename": "r.pdf",
+            "content": "AAEC",
+            "content_type": "application/pdf"
+          }
+        ]
+      }
+    },
+    {
+      "name": "attachment_reference_only_carries_its_id",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "attachments": [
+          {
+            "attachment_id": "att_123"
+          }
+        ]
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "attachments": [
+          {
+            "attachment_id": "att_123"
+          }
+        ]
+      }
+    },
+    {
+      "name": "attachment_url_is_server_fetch",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "attachments": [
+          {
+            "filename": "r.pdf",
+            "content_url": "https://example.com/r.pdf"
+          }
+        ]
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "attachments": [
+          {
+            "filename": "r.pdf",
+            "content_url": "https://example.com/r.pdf"
+          }
+        ]
+      }
+    },
+    {
+      "name": "attachment_inline_cid",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "attachments": [
+          {
+            "filename": "logo.png",
+            "content": "AAEC",
+            "content_type": "image/png",
+            "content_disposition": "inline",
+            "content_id": "logo"
+          }
+        ]
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "attachments": [
+          {
+            "filename": "logo.png",
+            "content": "AAEC",
+            "content_type": "image/png",
+            "content_disposition": "inline",
+            "content_id": "logo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "metadata_preserves_json_types",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "metadata": {
+          "order": 4821,
+          "vip": true,
+          "tags": [
+            "a",
+            "b"
+          ],
+          "nested": {
+            "k": null
+          }
+        }
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "metadata": {
+          "order": 4821,
+          "vip": true,
+          "tags": [
+            "a",
+            "b"
+          ],
+          "nested": {
+            "k": null
+          }
+        }
+      }
+    },
+    {
+      "name": "template_data_is_strings_only",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "template_id": "tpl_1",
+        "template_data": {
+          "name": "Rae"
+        },
+        "template_version": 3
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "template_id": "tpl_1",
+        "template_data": {
+          "name": "Rae"
+        },
+        "template_version": 3
+      }
+    },
+    {
+      "name": "tristate_omitted_leaves_schedule_unchanged",
+      "type": "EmailUpdate",
+      "input": {},
+      "expected": {},
+      "absentKeys": [
+        "scheduled_at"
+      ]
+    },
+    {
+      "name": "tristate_explicit_null_sends_now",
+      "type": "EmailUpdate",
+      "input": {
+        "scheduled_at": null
+      },
+      "expected": {
+        "scheduled_at": null
+      }
+    },
+    {
+      "name": "tristate_value_reschedules",
+      "type": "EmailUpdate",
+      "input": {
+        "scheduled_at": "2026-09-07T10:00:00Z"
+      },
+      "expected": {
+        "scheduled_at": "2026-09-07T10:00:00Z"
+      }
+    },
+    {
+      "name": "explicit_offset_is_preserved_not_localised",
+      "type": "EmailCreate",
+      "input": {
+        "from": "a@example.com",
+        "to": "b@example.com",
+        "subject": "s",
+        "scheduled_at": "2026-09-07T10:00:00+02:00"
+      },
+      "expected": {
+        "from": "a@example.com",
+        "to": [
+          "b@example.com"
+        ],
+        "subject": "s",
+        "scheduled_at": "2026-09-07T10:00:00+02:00"
+      }
+    }
+  ]
+}

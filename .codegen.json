@@ -1,0 +1,29 @@
+{
+  "generator": "epostix-codegen",
+  "spec": {
+    "raw_sha256": "bb71a54ab7ec8025ecc7f833f8a9c260ee0a9040fcfb39608c5cde1ba952c6f2",
+    "contract_sha256": "8f5de3df7a3ac063c6f0110ffc007cea51db26cb9f2826b0d72e6e27d235b4f3"
+  },
+  "ir_sha256": "182bab5a6f40f8c424518090112332f014d04098e0969687b0f3321738d93b07",
+  "files": {
+    "models_gen.go": "0428885dbf7a02bfc277a0cf6796f06e7518ff32b12dc6c7bfcef7285a32c05f",
+    "unions_gen.go": "46a7180792876ff820b98fa1bc73cfa459b2400ef0a86f4673d1abe4f3d7979a",
+    "operations_gen.go": "aaad9516d0509d09d9fad7cbb7a385b28af58285acdc3785675cbb4a1451a66f",
+    "analytics_gen.go": "e3630bbaa08e129468c1854858b3376b9684cc0907c58d1219a9fce81db105dc",
+    "apiKeys_gen.go": "bfd8088248928e668e5db89b7973dc3d98cefde879d4bb0f263357f41fac6188",
+    "attachments_gen.go": "84c2a535c9d77e51ecacf2ccd995f6ca81de7c7faa972cb973046b8d8838f66a",
+    "broadcasts_gen.go": "c00f04c533c05f2d3839163a2228b2736bab6ddd818a770e5c4e4c32906bc2fc",
+    "contacts_gen.go": "0317b376d445ec8f794dfb6b0f07278fba79b53ed7355c4dace3a80864a94219",
+    "domains_gen.go": "e1405e1f61ee172767719302f40b143a7dbe3437c6439a511acf50c08510e77a",
+    "emails_gen.go": "fbea8de7311ed24be4e43964cd612ba062fae7d732c1979c1ed2a15e9ef8461e",
+    "events_gen.go": "48035338efb66882099dbe7bcf61a5a6f386c637e066677c202372e9d480787b",
+    "inbound_gen.go": "46c448c842171347d13c11df2a4457cf1d73119f5fa46484e87acbfe173c0bcf",
+    "suppressions_gen.go": "0fd7b1a1573ad2052b6b92632fcf4649362a28f896f294e5300dca5d4c3ba357",
+    "tags_gen.go": "01a04cd494ef8caa7259ceed40364de30cfb47f0eda07c10b32d47182bcde74a",
+    "templates_gen.go": "7535447ab2a3fd188ce76bbc8ebab67049872e4ab6859b3e3cc2e98f3b412ee7",
+    "templates_versions_gen.go": "434cd22a0ac89e04d89b81cf78e74f8bc2ea1dc1d30699fc2f5d0a36ae8e42d1",
+    "webhooks_gen.go": "25d40d97cda13fbba6d00381c0fdca090008bad05d234fb39f2a2b5888f86f9f",
+    "webhooks_logs_gen.go": "af589c346c2688f2dc00c67d354216b831fde559f65be3a5fcf876ec10f0485a",
+    "resources_gen.go": "f51837eab8cb657dd2e6fcb1a336fbbbc0cb3e25d55c976f38956d28e9f9badc"
+  }
+}

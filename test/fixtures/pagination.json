@@ -1,0 +1,62 @@
+{
+  "description": "Cursor iteration. Protocol faults must be reported, never spun on or silently truncated.",
+  "cases": [
+    {
+      "name": "filters_persist_across_pages",
+      "operation": "listEmails",
+      "params": { "status": "delivered", "limit": 2 },
+      "pages": [
+        { "query": { "status": "delivered", "limit": "2" }, "body": { "data": [{ "id": "e1" }, { "id": "e2" }], "has_more": true, "next_cursor": "e2" } },
+        { "query": { "status": "delivered", "limit": "2", "starting_after": "e2" }, "body": { "data": [{ "id": "e3" }], "has_more": false } }
+      ],
+      "expect": { "items": ["e1", "e2", "e3"], "requests": 2 }
+    },
+    {
+      "name": "early_break_stops_fetching",
+      "operation": "listEmails",
+      "params": { "limit": 2 },
+      "pages": [
+        { "body": { "data": [{ "id": "e1" }, { "id": "e2" }], "has_more": true, "next_cursor": "e2" } }
+      ],
+      "breakAfter": 1,
+      "expect": { "items": ["e1"], "requests": 1 }
+    },
+    {
+      "name": "empty_intermediate_page_with_new_cursor_continues",
+      "operation": "listEmails",
+      "params": { "limit": 2 },
+      "pages": [
+        { "body": { "data": [], "has_more": true, "next_cursor": "c1" } },
+        { "body": { "data": [{ "id": "e1" }], "has_more": false } }
+      ],
+      "expect": { "items": ["e1"], "requests": 2 }
+    },
+    {
+      "name": "has_more_without_cursor_is_an_error",
+      "operation": "listEmails",
+      "params": {},
+      "pages": [{ "body": { "data": [{ "id": "e1" }], "has_more": true } }],
+      "expect": { "error": "MissingCursor" }
+    },
+    {
+      "name": "repeated_cursor_is_an_error",
+      "operation": "listEmails",
+      "params": {},
+      "pages": [
+        { "body": { "data": [{ "id": "e1" }], "has_more": true, "next_cursor": "c1" } },
+        { "body": { "data": [{ "id": "e2" }], "has_more": true, "next_cursor": "c1" } }
+      ],
+      "expect": { "error": "RepeatedCursor" }
+    },
+    {
+      "name": "collect_respects_its_cap_and_reports_truncation",
+      "operation": "listEmails",
+      "params": {},
+      "maximumItems": 2,
+      "pages": [
+        { "body": { "data": [{ "id": "e1" }, { "id": "e2" }, { "id": "e3" }], "has_more": true, "next_cursor": "e3" } }
+      ],
+      "expect": { "items": ["e1", "e2"], "truncated": true, "requests": 1 }
+    }
+  ]
+}

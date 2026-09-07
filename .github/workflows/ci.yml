@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: the vendored spec must match the codegen manifest
+        run: |
+          expected=$(python3 -c "import json;print(json.load(open('.codegen.json'))['spec']['raw_sha256'])")
+          actual=$(shasum -a 256 openapi/developer-v1.yaml | cut -d' ' -f1)
+          if [ "$expected" != "$actual" ]; then
+            echo "the vendored spec does not match .codegen.json"
+            exit 1
+          fi
+      - name: generated files must not be hand-edited
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, sys
+          manifest = json.load(open('.codegen.json'))
+          failures = 0
+          for path, expected in manifest['files'].items():
+              try:
+                  actual = hashlib.sha256(open(path, 'rb').read()).hexdigest()
+              except FileNotFoundError:
+                  print(f'missing generated file: {path}')
+                  failures += 1
+                  continue
+              if actual != expected:
+                  print(f'generated file was edited by hand: {path}')
+                  failures += 1
+          if failures:
+              sys.exit(1)
+          print(f"contract ok: {len(manifest['files'])} generated files")
+          PY
+
+  test:
+    needs: contract
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [stable, oldstable]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: the core must have no runtime dependencies
+        run: |
+          modules=$(go list -m all | grep -v '^github.com/epostix/sdk-go$' || true)
+          if [ -n "$modules" ]; then
+            echo "unexpected runtime dependencies:"
+            echo "$modules"
+            exit 1
+          fi
+      - run: gofmt -l . | tee /tmp/fmt && test ! -s /tmp/fmt
