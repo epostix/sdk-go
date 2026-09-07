@@ -1,0 +1,44 @@
+name: regenerate
+
+on:
+  push:
+    branches:
+      - "chore/regenerate-*"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-pull-request:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="${GITHUB_REF#refs/heads/}"
+          fingerprint="${branch#chore/regenerate-}"
+
+          existing=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            echo "pull request #$existing already open for $branch"
+            exit 0
+          fi
+
+          gh pr create \
+            --head "$branch" \
+            --base main \
+            --title "chore(codegen): regenerate for contract $fingerprint" \
+            --body "The developer API contract moved to \`$fingerprint\`.
+
+          This branch was pushed by the codegen fan-out. The generated tree was rewritten
+          wholesale; nothing here was hand-edited.
+
+          CI must pass before merging: the contract job verifies the vendored spec matches
+          the manifest and that no generated file was edited by hand.
+
+          After merging, cut a release to publish."
