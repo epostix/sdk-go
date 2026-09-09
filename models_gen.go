@@ -174,7 +174,7 @@ type APIKeyCreateRequest struct {
 	ExpiresAt    time.Time                       `json:"expires_at"`
 	Name         string                          `json:"name"`
 	Environment  *APIKeyCreateRequestEnvironment `json:"environment,omitempty"`
-	Permissions  []PermissionScope               `json:"permissions,omitempty"`
+	Permissions  []PermissionGrant               `json:"permissions,omitempty"`
 	WhitelistIps []string                        `json:"whitelist_ips,omitempty"`
 }
 
@@ -203,7 +203,7 @@ type APIKeyCreateResponse struct {
 	Environment  APIKeyCreateResponseEnvironment `json:"environment"`
 	ID           string                          `json:"id"`
 	Name         string                          `json:"name"`
-	Permissions  []PermissionScope               `json:"permissions"`
+	Permissions  []PermissionGrant               `json:"permissions"`
 	Token        string                          `json:"token"`
 	TokenHint    string                          `json:"token_hint"`
 	ExpiresAt    Optional[time.Time]             `json:"expires_at,omitzero"`
@@ -251,7 +251,7 @@ type APIKeyResponse struct {
 	Environment  APIKeyResponseEnvironment `json:"environment"`
 	ID           string                    `json:"id"`
 	Name         string                    `json:"name"`
-	Permissions  []PermissionScope         `json:"permissions"`
+	Permissions  []PermissionGrant         `json:"permissions"`
 	TokenHint    string                    `json:"token_hint"`
 	ExpiresAt    Optional[time.Time]       `json:"expires_at,omitzero"`
 	LastUsedAt   Optional[time.Time]       `json:"last_used_at,omitzero"`
@@ -287,7 +287,7 @@ func (v APIKeyResponseEnvironment) String() string {
 
 type APIKeyUpdateRequest struct {
 	Name         *string           `json:"name,omitempty"`
-	Permissions  []PermissionScope `json:"permissions,omitempty"`
+	Permissions  []PermissionGrant `json:"permissions,omitempty"`
 	WhitelistIps []string          `json:"whitelist_ips,omitempty"`
 }
 
@@ -309,7 +309,7 @@ type APIKeyUsageLog struct {
 	Path       string           `json:"path"`
 	StatusCode int              `json:"status_code"`
 	IPAddress  Optional[string] `json:"ip_address,omitzero"`
-	ScopeUsed  Optional[string] `json:"scope_used,omitzero"`
+	ScopeUsed  *PermissionScope `json:"scope_used,omitempty"`
 }
 
 type Attachment struct {
@@ -671,17 +671,19 @@ type DNSRecord struct {
 type DNSRecordKind string
 
 const (
-	DNSRecordKindSPF       DNSRecordKind = "spf"
-	DNSRecordKindDKIM      DNSRecordKind = "dkim"
-	DNSRecordKindDMARC     DNSRecordKind = "dmarc"
-	DNSRecordKindMXInbound DNSRecordKind = "mx_inbound"
+	DNSRecordKindSPF        DNSRecordKind = "spf"
+	DNSRecordKindDKIM       DNSRecordKind = "dkim"
+	DNSRecordKindDMARC      DNSRecordKind = "dmarc"
+	DNSRecordKindMXInbound  DNSRecordKind = "mx_inbound"
+	DNSRecordKindOpenpgpkey DNSRecordKind = "openpgpkey"
 )
 
 var knownDNSRecordKind = map[DNSRecordKind]bool{
-	DNSRecordKindSPF:       true,
-	DNSRecordKindDKIM:      true,
-	DNSRecordKindDMARC:     true,
-	DNSRecordKindMXInbound: true,
+	DNSRecordKindSPF:        true,
+	DNSRecordKindDKIM:       true,
+	DNSRecordKindDMARC:      true,
+	DNSRecordKindMXInbound:  true,
+	DNSRecordKindOpenpgpkey: true,
 }
 
 func (v DNSRecordKind) Known() bool {
@@ -1073,29 +1075,59 @@ func (m *EventListResponse) setMeta(meta ResponseMeta) {
 type EventType string
 
 const (
-	EventTypeEmailSent       EventType = "email.sent"
-	EventTypeEmailDelivered  EventType = "email.delivered"
-	EventTypeEmailBounced    EventType = "email.bounced"
-	EventTypeEmailOpened     EventType = "email.opened"
-	EventTypeEmailClicked    EventType = "email.clicked"
-	EventTypeEmailComplained EventType = "email.complained"
-	EventTypeEmailFailed     EventType = "email.failed"
-	EventTypeEmailDelayed    EventType = "email.delayed"
-	EventTypeEmailReceived   EventType = "email.received"
-	EventTypeWebhookTest     EventType = "webhook.test"
+	EventTypeEmailSent                        EventType = "email.sent"
+	EventTypeEmailDelivered                   EventType = "email.delivered"
+	EventTypeEmailBounced                     EventType = "email.bounced"
+	EventTypeEmailOpened                      EventType = "email.opened"
+	EventTypeEmailClicked                     EventType = "email.clicked"
+	EventTypeEmailComplained                  EventType = "email.complained"
+	EventTypeEmailFailed                      EventType = "email.failed"
+	EventTypeEmailDelayed                     EventType = "email.delayed"
+	EventTypeEmailCancelled                   EventType = "email.cancelled"
+	EventTypeEmailReceived                    EventType = "email.received"
+	EventTypeDomainVerified                   EventType = "domain.verified"
+	EventTypeDomainVerificationFailed         EventType = "domain.verification_failed"
+	EventTypeTrackingDomainVerified           EventType = "tracking_domain.verified"
+	EventTypeTrackingDomainVerificationFailed EventType = "tracking_domain.verification_failed"
+	EventTypeCampaignStarted                  EventType = "campaign.started"
+	EventTypeCampaignPaused                   EventType = "campaign.paused"
+	EventTypeCampaignResumed                  EventType = "campaign.resumed"
+	EventTypeCampaignCompleted                EventType = "campaign.completed"
+	EventTypeCampaignCancelled                EventType = "campaign.cancelled"
+	EventTypeCampaignAutoPaused               EventType = "campaign.auto_paused"
+	EventTypeContactStatusChanged             EventType = "contact.status_changed"
+	EventTypeContactImportCompleted           EventType = "contact.import_completed"
+	EventTypeSuppressionCreated               EventType = "suppression.created"
+	EventTypeSuppressionRemoved               EventType = "suppression.removed"
+	EventTypeWebhookTest                      EventType = "webhook.test"
 )
 
 var knownEventType = map[EventType]bool{
-	EventTypeEmailSent:       true,
-	EventTypeEmailDelivered:  true,
-	EventTypeEmailBounced:    true,
-	EventTypeEmailOpened:     true,
-	EventTypeEmailClicked:    true,
-	EventTypeEmailComplained: true,
-	EventTypeEmailFailed:     true,
-	EventTypeEmailDelayed:    true,
-	EventTypeEmailReceived:   true,
-	EventTypeWebhookTest:     true,
+	EventTypeEmailSent:                        true,
+	EventTypeEmailDelivered:                   true,
+	EventTypeEmailBounced:                     true,
+	EventTypeEmailOpened:                      true,
+	EventTypeEmailClicked:                     true,
+	EventTypeEmailComplained:                  true,
+	EventTypeEmailFailed:                      true,
+	EventTypeEmailDelayed:                     true,
+	EventTypeEmailCancelled:                   true,
+	EventTypeEmailReceived:                    true,
+	EventTypeDomainVerified:                   true,
+	EventTypeDomainVerificationFailed:         true,
+	EventTypeTrackingDomainVerified:           true,
+	EventTypeTrackingDomainVerificationFailed: true,
+	EventTypeCampaignStarted:                  true,
+	EventTypeCampaignPaused:                   true,
+	EventTypeCampaignResumed:                  true,
+	EventTypeCampaignCompleted:                true,
+	EventTypeCampaignCancelled:                true,
+	EventTypeCampaignAutoPaused:               true,
+	EventTypeContactStatusChanged:             true,
+	EventTypeContactImportCompleted:           true,
+	EventTypeSuppressionCreated:               true,
+	EventTypeSuppressionRemoved:               true,
+	EventTypeWebhookTest:                      true,
 }
 
 func (v EventType) Known() bool {
@@ -1406,6 +1438,8 @@ type MailboxAddressValue struct {
 	Email string  `json:"email"`
 	Name  *string `json:"name,omitempty"`
 }
+
+type PermissionGrant = string
 
 type PermissionScope string
 
@@ -1842,6 +1876,7 @@ type Webhook struct {
 	Description    *string             `json:"description,omitempty"`
 	DisabledAt     Optional[time.Time] `json:"disabled_at,omitzero"`
 	DisabledReason Optional[string]    `json:"disabled_reason,omitzero"`
+	DomainIds      []string            `json:"domain_ids,omitempty"`
 	FailureCount   *int                `json:"failure_count,omitempty"`
 	UpdatedAt      *time.Time          `json:"updated_at,omitempty"`
 	Meta           ResponseMeta        `json:"-"`
@@ -1868,6 +1903,7 @@ type WebhookCreateRequest struct {
 	Events      []WebhookEventType `json:"events"`
 	URL         string             `json:"url"`
 	Description *string            `json:"description,omitempty"`
+	DomainIds   []string           `json:"domain_ids,omitempty"`
 	Secret      *string            `json:"secret,omitempty"`
 }
 
@@ -1879,6 +1915,7 @@ type WebhookCreateResponse struct {
 	Secret      string             `json:"secret"`
 	URL         string             `json:"url"`
 	Description *string            `json:"description,omitempty"`
+	DomainIds   []string           `json:"domain_ids,omitempty"`
 	UpdatedAt   *time.Time         `json:"updated_at,omitempty"`
 	Meta        ResponseMeta       `json:"-"`
 }
@@ -1943,27 +1980,57 @@ func (v WebhookDeliveryLogStatus) String() string {
 type WebhookEventType string
 
 const (
-	WebhookEventTypeEmailSent       WebhookEventType = "email.sent"
-	WebhookEventTypeEmailDelivered  WebhookEventType = "email.delivered"
-	WebhookEventTypeEmailBounced    WebhookEventType = "email.bounced"
-	WebhookEventTypeEmailOpened     WebhookEventType = "email.opened"
-	WebhookEventTypeEmailClicked    WebhookEventType = "email.clicked"
-	WebhookEventTypeEmailComplained WebhookEventType = "email.complained"
-	WebhookEventTypeEmailFailed     WebhookEventType = "email.failed"
-	WebhookEventTypeEmailDelayed    WebhookEventType = "email.delayed"
-	WebhookEventTypeEmailReceived   WebhookEventType = "email.received"
+	WebhookEventTypeEmailSent                        WebhookEventType = "email.sent"
+	WebhookEventTypeEmailDelivered                   WebhookEventType = "email.delivered"
+	WebhookEventTypeEmailBounced                     WebhookEventType = "email.bounced"
+	WebhookEventTypeEmailOpened                      WebhookEventType = "email.opened"
+	WebhookEventTypeEmailClicked                     WebhookEventType = "email.clicked"
+	WebhookEventTypeEmailComplained                  WebhookEventType = "email.complained"
+	WebhookEventTypeEmailFailed                      WebhookEventType = "email.failed"
+	WebhookEventTypeEmailDelayed                     WebhookEventType = "email.delayed"
+	WebhookEventTypeEmailCancelled                   WebhookEventType = "email.cancelled"
+	WebhookEventTypeEmailReceived                    WebhookEventType = "email.received"
+	WebhookEventTypeDomainVerified                   WebhookEventType = "domain.verified"
+	WebhookEventTypeDomainVerificationFailed         WebhookEventType = "domain.verification_failed"
+	WebhookEventTypeTrackingDomainVerified           WebhookEventType = "tracking_domain.verified"
+	WebhookEventTypeTrackingDomainVerificationFailed WebhookEventType = "tracking_domain.verification_failed"
+	WebhookEventTypeCampaignStarted                  WebhookEventType = "campaign.started"
+	WebhookEventTypeCampaignPaused                   WebhookEventType = "campaign.paused"
+	WebhookEventTypeCampaignResumed                  WebhookEventType = "campaign.resumed"
+	WebhookEventTypeCampaignCompleted                WebhookEventType = "campaign.completed"
+	WebhookEventTypeCampaignCancelled                WebhookEventType = "campaign.cancelled"
+	WebhookEventTypeCampaignAutoPaused               WebhookEventType = "campaign.auto_paused"
+	WebhookEventTypeContactStatusChanged             WebhookEventType = "contact.status_changed"
+	WebhookEventTypeContactImportCompleted           WebhookEventType = "contact.import_completed"
+	WebhookEventTypeSuppressionCreated               WebhookEventType = "suppression.created"
+	WebhookEventTypeSuppressionRemoved               WebhookEventType = "suppression.removed"
 )
 
 var knownWebhookEventType = map[WebhookEventType]bool{
-	WebhookEventTypeEmailSent:       true,
-	WebhookEventTypeEmailDelivered:  true,
-	WebhookEventTypeEmailBounced:    true,
-	WebhookEventTypeEmailOpened:     true,
-	WebhookEventTypeEmailClicked:    true,
-	WebhookEventTypeEmailComplained: true,
-	WebhookEventTypeEmailFailed:     true,
-	WebhookEventTypeEmailDelayed:    true,
-	WebhookEventTypeEmailReceived:   true,
+	WebhookEventTypeEmailSent:                        true,
+	WebhookEventTypeEmailDelivered:                   true,
+	WebhookEventTypeEmailBounced:                     true,
+	WebhookEventTypeEmailOpened:                      true,
+	WebhookEventTypeEmailClicked:                     true,
+	WebhookEventTypeEmailComplained:                  true,
+	WebhookEventTypeEmailFailed:                      true,
+	WebhookEventTypeEmailDelayed:                     true,
+	WebhookEventTypeEmailCancelled:                   true,
+	WebhookEventTypeEmailReceived:                    true,
+	WebhookEventTypeDomainVerified:                   true,
+	WebhookEventTypeDomainVerificationFailed:         true,
+	WebhookEventTypeTrackingDomainVerified:           true,
+	WebhookEventTypeTrackingDomainVerificationFailed: true,
+	WebhookEventTypeCampaignStarted:                  true,
+	WebhookEventTypeCampaignPaused:                   true,
+	WebhookEventTypeCampaignResumed:                  true,
+	WebhookEventTypeCampaignCompleted:                true,
+	WebhookEventTypeCampaignCancelled:                true,
+	WebhookEventTypeCampaignAutoPaused:               true,
+	WebhookEventTypeContactStatusChanged:             true,
+	WebhookEventTypeContactImportCompleted:           true,
+	WebhookEventTypeSuppressionCreated:               true,
+	WebhookEventTypeSuppressionRemoved:               true,
 }
 
 func (v WebhookEventType) Known() bool {
@@ -1998,6 +2065,7 @@ func (m *WebhookRotateSecretResponse) setMeta(meta ResponseMeta) {
 type WebhookUpdateRequest struct {
 	Active      *bool              `json:"active,omitempty"`
 	Description *string            `json:"description,omitempty"`
+	DomainIds   []string           `json:"domain_ids,omitempty"`
 	Events      []WebhookEventType `json:"events,omitempty"`
 	URL         *string            `json:"url,omitempty"`
 }
