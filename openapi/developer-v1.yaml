@@ -4942,6 +4942,7 @@ components:
             - dkim
             - dmarc
             - mx_inbound
+            - openpgpkey
           description: Semantic kind of the record (so clients can label rows without parsing values).
         last_verification_error:
           type: string
@@ -5210,10 +5211,19 @@ components:
         - 'broadcasts:send'
         - '*'
       description: >
-        Permission scope for an API key. Base scopes grant access to all domains.
-        Per-domain restriction is supported for `sending`, `emails:read`, and `domains:manage`
-        using the format `{scope}:domain:{domain_name}`, for example `sending:domain:acme.com`,
-        restricts sending to acme.com only. Multiple domain-scoped permissions can be combined.
+        The base permission vocabulary for an API key. A key is granted
+        `PermissionGrant` values, which are these scopes optionally narrowed to a
+        single domain.
+    PermissionGrant:
+      type: string
+      pattern: '^(\*|[a-z][a-z-]*(:[a-z-]+)?(:domain:[A-Za-z0-9.-]{1,253})?)$'
+      description: >
+        A permission scope, optionally narrowed to one domain with the suffix
+        `:domain:{domain_name}`. Base scopes grant access to all domains.
+        Per-domain restriction is supported for `sending`, `emails:read`, and `domains:manage`,
+        so `sending:domain:acme.com` restricts sending to acme.com only. Multiple
+        domain-scoped permissions can be combined. See `PermissionScope` for the base
+        vocabulary.
     APIKeyResponse:
       type: object
       required:
@@ -5237,7 +5247,7 @@ components:
         permissions:
           type: array
           items:
-            $ref: '#/components/schemas/PermissionScope'
+            $ref: '#/components/schemas/PermissionGrant'
           description: Permission scopes granted to this key.
         token_hint:
           type: string
@@ -5295,7 +5305,7 @@ components:
         permissions:
           type: array
           items:
-            $ref: '#/components/schemas/PermissionScope'
+            $ref: '#/components/schemas/PermissionGrant'
           description: 'Permission scopes. Defaults to ["*"] (full access) if omitted.'
     APIKeyCreateResponse:
       type: object
@@ -5318,7 +5328,7 @@ components:
         permissions:
           type: array
           items:
-            $ref: '#/components/schemas/PermissionScope'
+            $ref: '#/components/schemas/PermissionGrant'
         token:
           type: string
           description: 'The full API key token. It is shown only once, so store it securely.'
@@ -5350,7 +5360,7 @@ components:
         permissions:
           type: array
           items:
-            $ref: '#/components/schemas/PermissionScope'
+            $ref: '#/components/schemas/PermissionGrant'
           description: Updated permissions.
     APIKeyListResponse:
       type: object
@@ -5390,9 +5400,7 @@ components:
           nullable: true
           description: Client IP address.
         scope_used:
-          type: string
-          nullable: true
-          description: Permission scope required for this request.
+          $ref: '#/components/schemas/PermissionScope'
         created_at:
           type: string
           format: date-time
@@ -5421,14 +5429,32 @@ components:
         - email.complained
         - email.failed
         - email.delayed
+        - email.cancelled
         - email.received
+        - domain.verified
+        - domain.verification_failed
+        - tracking_domain.verified
+        - tracking_domain.verification_failed
+        - campaign.started
+        - campaign.paused
+        - campaign.resumed
+        - campaign.completed
+        - campaign.cancelled
+        - campaign.auto_paused
+        - contact.status_changed
+        - contact.import_completed
+        - suppression.created
+        - suppression.removed
         - webhook.test
       description: >
         Every event type the platform emits. email.* events carry an email_id, except
         email.received, which fires for inbound mail and carries an inbound_id.
-        webhook.test is delivered by the test-endpoint operation and cannot be subscribed to.
-        Treat this enum as open: clients must tolerate a value added by a later release
-        rather than failing to decode the surrounding object.
+        domain.* and tracking_domain.* events carry a domain_id. campaign.* events carry a
+        campaign_id, contact.* events a contact_id, and suppression.* events the suppressed
+        address; these three families are workspace-wide and carry neither an email_id nor a
+        domain_id. webhook.test is delivered by the test-endpoint operation and cannot be
+        subscribed to. Treat this enum as open: clients must tolerate a value added by a
+        later release rather than failing to decode the surrounding object.
 
     WebhookEventType:
       type: string
@@ -5441,7 +5467,22 @@ components:
         - email.complained
         - email.failed
         - email.delayed
+        - email.cancelled
         - email.received
+        - domain.verified
+        - domain.verification_failed
+        - tracking_domain.verified
+        - tracking_domain.verification_failed
+        - campaign.started
+        - campaign.paused
+        - campaign.resumed
+        - campaign.completed
+        - campaign.cancelled
+        - campaign.auto_paused
+        - contact.status_changed
+        - contact.import_completed
+        - suppression.created
+        - suppression.removed
       description: >
         An event a webhook endpoint can subscribe to. This is the subscribable subset of
         EventType; webhook.test is delivered to an endpoint but is not subscribable.
@@ -5459,6 +5500,16 @@ components:
           type: array
           items: { $ref: '#/components/schemas/WebhookEventType' }
           description: Event types to subscribe to.
+        domain_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >
+            Restrict this endpoint to the listed domains. Empty means every domain in the
+            workspace. Only email.* and domain.*/tracking_domain.* events carry a domain, so
+            an endpoint subscribed to a campaign.*, contact.* or suppression.* event must
+            leave this empty.
         description:
           type: string
           description: Optional description of the webhook endpoint.
@@ -5483,6 +5534,11 @@ components:
         events:
           type: array
           items: { $ref: '#/components/schemas/WebhookEventType' }
+        domain_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
         description:
           type: string
         active:
@@ -5513,6 +5569,11 @@ components:
         events:
           type: array
           items: { $ref: '#/components/schemas/WebhookEventType' }
+        domain_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
         description:
           type: string
         active:
@@ -5542,6 +5603,16 @@ components:
         events:
           type: array
           items: { $ref: '#/components/schemas/WebhookEventType' }
+        domain_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >
+            Restrict this endpoint to the listed domains. Empty means every domain in the
+            workspace. Only email.* and domain.*/tracking_domain.* events carry a domain, so
+            an endpoint subscribed to a campaign.*, contact.* or suppression.* event must
+            leave this empty.
         description:
           type: string
         active:
