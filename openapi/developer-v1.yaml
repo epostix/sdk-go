@@ -2781,7 +2781,7 @@ paths:
     get:
       tags: [Suppressions]
       summary: List suppressions
-      description: List all suppressed email addresses for this account. Includes bounce-based, complaint, unsubscribe, and manual suppressions.
+      description: List all suppressed email addresses for this account. Includes bounce-based, complaint, unsubscribe, manual, and cleaned suppressions.
       operationId: listSuppressions
       security:
         - bearerAuth: []
@@ -2807,7 +2807,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe]
+            enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe, cleaned]
         - name: email
           in: query
           schema:
@@ -3018,8 +3018,8 @@ paths:
                 $ref: '#/components/schemas/APIError'
     delete:
       tags: [Suppressions]
-      summary: Remove manual suppression
-      description: Remove a manual suppression. Only suppressions with reason "manual" can be removed. System suppressions (bounces, complaints) cannot be removed via API.
+      summary: Remove manual or cleaned suppression
+      description: Remove a manual suppression or one added by an audience clean. Only suppressions with reason "manual" or "cleaned" can be removed. System suppressions (bounces, complaints) cannot be removed via API.
       operationId: deleteSuppression
       security:
         - bearerAuth: []
@@ -3039,7 +3039,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
         '404':
-          description: No manual suppression found
+          description: No manual or cleaned suppression found
           content:
             application/json:
               schema:
@@ -4115,6 +4115,9 @@ components:
             - **clicked**: to, url, ip_address, user_agent, click_count
             - **complained**: to, bounce_type
             - **sent/failed/delayed**: event metadata
+
+            email.bounced and email.failed can arrive after email.delivered: a receiving server
+            may accept a message and report later that it could not be delivered.
     EventListResponse:
       type: object
       required:
@@ -5431,6 +5434,7 @@ components:
         - email.delayed
         - email.cancelled
         - email.received
+        - email.return_path_reply
         - domain.verified
         - domain.verification_failed
         - tracking_domain.verified
@@ -5449,6 +5453,9 @@ components:
       description: >
         Every event type the platform emits. email.* events carry an email_id, except
         email.received, which fires for inbound mail and carries an inbound_id.
+        email.return_path_reply fires when a person replies to the bounce (Return-Path)
+        address of an email rather than to its From or Reply-To address; it carries the
+        email_id of the email being answered and is never also delivered as email.received.
         domain.* and tracking_domain.* events carry a domain_id. campaign.* events carry a
         campaign_id, contact.* events a contact_id, and suppression.* events the suppressed
         address; these three families are workspace-wide and carry neither an email_id nor a
@@ -5469,6 +5476,7 @@ components:
         - email.delayed
         - email.cancelled
         - email.received
+        - email.return_path_reply
         - domain.verified
         - domain.verification_failed
         - tracking_domain.verified
@@ -5743,7 +5751,7 @@ components:
           type: string
         reason:
           type: string
-          enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe]
+          enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe, cleaned]
         created_at:
           type: string
           format: date-time
@@ -5760,7 +5768,7 @@ components:
           type: boolean
         reason:
           type: string
-          enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe]
+          enum: [hard_bounce, soft_bounce, complaint, manual, unsubscribe, cleaned]
         created_at:
           type: string
           format: date-time
