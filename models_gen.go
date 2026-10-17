@@ -1085,6 +1085,7 @@ const (
 	EventTypeEmailDelayed                     EventType = "email.delayed"
 	EventTypeEmailCancelled                   EventType = "email.cancelled"
 	EventTypeEmailReceived                    EventType = "email.received"
+	EventTypeEmailReturnPathReply             EventType = "email.return_path_reply"
 	EventTypeDomainVerified                   EventType = "domain.verified"
 	EventTypeDomainVerificationFailed         EventType = "domain.verification_failed"
 	EventTypeTrackingDomainVerified           EventType = "tracking_domain.verified"
@@ -1113,6 +1114,7 @@ var knownEventType = map[EventType]bool{
 	EventTypeEmailDelayed:                     true,
 	EventTypeEmailCancelled:                   true,
 	EventTypeEmailReceived:                    true,
+	EventTypeEmailReturnPathReply:             true,
 	EventTypeDomainVerified:                   true,
 	EventTypeDomainVerificationFailed:         true,
 	EventTypeTrackingDomainVerified:           true,
@@ -1394,6 +1396,7 @@ const (
 	ListSuppressionsReasonComplaint   ListSuppressionsReason = "complaint"
 	ListSuppressionsReasonManual      ListSuppressionsReason = "manual"
 	ListSuppressionsReasonUnsubscribe ListSuppressionsReason = "unsubscribe"
+	ListSuppressionsReasonCleaned     ListSuppressionsReason = "cleaned"
 )
 
 var knownListSuppressionsReason = map[ListSuppressionsReason]bool{
@@ -1402,6 +1405,7 @@ var knownListSuppressionsReason = map[ListSuppressionsReason]bool{
 	ListSuppressionsReasonComplaint:   true,
 	ListSuppressionsReasonManual:      true,
 	ListSuppressionsReasonUnsubscribe: true,
+	ListSuppressionsReasonCleaned:     true,
 }
 
 func (v ListSuppressionsReason) Known() bool {
@@ -1651,6 +1655,7 @@ const (
 	SuppressionDetailReasonComplaint   SuppressionDetailReason = "complaint"
 	SuppressionDetailReasonManual      SuppressionDetailReason = "manual"
 	SuppressionDetailReasonUnsubscribe SuppressionDetailReason = "unsubscribe"
+	SuppressionDetailReasonCleaned     SuppressionDetailReason = "cleaned"
 )
 
 var knownSuppressionDetailReason = map[SuppressionDetailReason]bool{
@@ -1659,6 +1664,7 @@ var knownSuppressionDetailReason = map[SuppressionDetailReason]bool{
 	SuppressionDetailReasonComplaint:   true,
 	SuppressionDetailReasonManual:      true,
 	SuppressionDetailReasonUnsubscribe: true,
+	SuppressionDetailReasonCleaned:     true,
 }
 
 func (v SuppressionDetailReason) Known() bool {
@@ -1688,6 +1694,7 @@ const (
 	SuppressionReasonComplaint   SuppressionReason = "complaint"
 	SuppressionReasonManual      SuppressionReason = "manual"
 	SuppressionReasonUnsubscribe SuppressionReason = "unsubscribe"
+	SuppressionReasonCleaned     SuppressionReason = "cleaned"
 )
 
 var knownSuppressionReason = map[SuppressionReason]bool{
@@ -1696,6 +1703,7 @@ var knownSuppressionReason = map[SuppressionReason]bool{
 	SuppressionReasonComplaint:   true,
 	SuppressionReasonManual:      true,
 	SuppressionReasonUnsubscribe: true,
+	SuppressionReasonCleaned:     true,
 }
 
 func (v SuppressionReason) Known() bool {
@@ -1990,6 +1998,7 @@ const (
 	WebhookEventTypeEmailDelayed                     WebhookEventType = "email.delayed"
 	WebhookEventTypeEmailCancelled                   WebhookEventType = "email.cancelled"
 	WebhookEventTypeEmailReceived                    WebhookEventType = "email.received"
+	WebhookEventTypeEmailReturnPathReply             WebhookEventType = "email.return_path_reply"
 	WebhookEventTypeDomainVerified                   WebhookEventType = "domain.verified"
 	WebhookEventTypeDomainVerificationFailed         WebhookEventType = "domain.verification_failed"
 	WebhookEventTypeTrackingDomainVerified           WebhookEventType = "tracking_domain.verified"
@@ -2017,6 +2026,7 @@ var knownWebhookEventType = map[WebhookEventType]bool{
 	WebhookEventTypeEmailDelayed:                     true,
 	WebhookEventTypeEmailCancelled:                   true,
 	WebhookEventTypeEmailReceived:                    true,
+	WebhookEventTypeEmailReturnPathReply:             true,
 	WebhookEventTypeDomainVerified:                   true,
 	WebhookEventTypeDomainVerificationFailed:         true,
 	WebhookEventTypeTrackingDomainVerified:           true,
