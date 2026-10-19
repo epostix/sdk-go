@@ -117,7 +117,7 @@ func New(apiKey string, opts ...Option) *Client {
 	client := &Client{
 		apiKey:         apiKey,
 		baseURL:        ProductionBaseURL,
-		userAgent:      "epostix-go/1.3.0",
+		userAgent:      "epostix-go/1.4.0",
 		httpClient:     &http.Client{},
 		ownsHTTPClient: true,
 		retryPolicy:    DefaultRetryPolicy(),
