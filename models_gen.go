@@ -962,6 +962,7 @@ type Email struct {
 	DeliveryTimeMs  *int              `json:"delivery_time_ms,omitempty"`
 	ErrorMessage    *string           `json:"error_message,omitempty"`
 	Events          []EmailEvent      `json:"events,omitempty"`
+	Failure         *EmailFailure     `json:"failure,omitempty"`
 	From            *string           `json:"from,omitempty"`
 	Headers         map[string]string `json:"headers,omitempty"`
 	HTML            *string           `json:"html,omitempty"`
@@ -1091,6 +1092,77 @@ type EmailEvent struct {
 	CreatedAt time.Time `json:"created_at"`
 	Status    string    `json:"status"`
 	EventType *string   `json:"event_type,omitempty"`
+}
+
+type EmailFailedEventData struct {
+	DomainID string        `json:"domain_id"`
+	EmailID  string        `json:"email_id"`
+	Failure  *EmailFailure `json:"failure,omitempty"`
+}
+
+type EmailFailure struct {
+	Fault  EmailFailureFault  `json:"fault"`
+	Reason EmailFailureReason `json:"reason"`
+}
+
+type EmailFailureFault string
+
+const (
+	EmailFailureFaultRecipient EmailFailureFault = "recipient"
+	EmailFailureFaultSender    EmailFailureFault = "sender"
+	EmailFailureFaultPlatform  EmailFailureFault = "platform"
+	EmailFailureFaultUnknown   EmailFailureFault = "unknown"
+)
+
+var knownEmailFailureFault = map[EmailFailureFault]bool{
+	EmailFailureFaultRecipient: true,
+	EmailFailureFaultSender:    true,
+	EmailFailureFaultPlatform:  true,
+	EmailFailureFaultUnknown:   true,
+}
+
+func (v EmailFailureFault) Known() bool {
+	return knownEmailFailureFault[v]
+}
+
+func (v EmailFailureFault) String() string {
+	return string(v)
+}
+
+type EmailFailureReason string
+
+const (
+	EmailFailureReasonSuppressed            EmailFailureReason = "suppressed"
+	EmailFailureReasonInvalidRecipient      EmailFailureReason = "invalid_recipient"
+	EmailFailureReasonBounced               EmailFailureReason = "bounced"
+	EmailFailureReasonExpired               EmailFailureReason = "expired"
+	EmailFailureReasonAttachmentTooLarge    EmailFailureReason = "attachment_too_large"
+	EmailFailureReasonAttachmentUnavailable EmailFailureReason = "attachment_unavailable"
+	EmailFailureReasonDKIMKeyMismatch       EmailFailureReason = "dkim_key_mismatch"
+	EmailFailureReasonSendingRestricted     EmailFailureReason = "sending_restricted"
+	EmailFailureReasonPlatformError         EmailFailureReason = "platform_error"
+	EmailFailureReasonNotDelivered          EmailFailureReason = "not_delivered"
+)
+
+var knownEmailFailureReason = map[EmailFailureReason]bool{
+	EmailFailureReasonSuppressed:            true,
+	EmailFailureReasonInvalidRecipient:      true,
+	EmailFailureReasonBounced:               true,
+	EmailFailureReasonExpired:               true,
+	EmailFailureReasonAttachmentTooLarge:    true,
+	EmailFailureReasonAttachmentUnavailable: true,
+	EmailFailureReasonDKIMKeyMismatch:       true,
+	EmailFailureReasonSendingRestricted:     true,
+	EmailFailureReasonPlatformError:         true,
+	EmailFailureReasonNotDelivered:          true,
+}
+
+func (v EmailFailureReason) Known() bool {
+	return knownEmailFailureReason[v]
+}
+
+func (v EmailFailureReason) String() string {
+	return string(v)
 }
 
 type EmailListResponse struct {

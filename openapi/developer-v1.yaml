@@ -4056,6 +4056,8 @@ components:
         error_message:
           type: string
           description: Error details if delivery failed.
+        failure:
+          $ref: '#/components/schemas/EmailFailure'
         click_count:
           type: integer
           description: Number of tracked link clicks.
@@ -4120,6 +4122,8 @@ components:
               Failures on the Epostix side never produce a bounced event.
             - **failed/delayed**: reason (a readable description), attempt, mx_hostname, next_attempt_at (delayed only), and
               bounce, an object with the bounced fields above, present only when the receiving system gave a verdict
+            - **failed** also carries failure, an object with reason (see EmailFailureReason) and fault (see EmailFailureFault).
+              It is absent on emails that failed before failures were recorded.
             - **opened**: ip_address, user_agent, open_source, device_type, os, os_version, client, client_version, is_bot, is_machine_open
             - **clicked**: url, ip_address, user_agent, the opened fields and is_machine_click
             - **complained**: feedback_type, provider, reported_at
@@ -5787,6 +5791,60 @@ components:
           items:
             $ref: '#/components/schemas/BounceHistoryEntry'
 
+    EmailFailureReason:
+      type: string
+      enum:
+        - suppressed
+        - invalid_recipient
+        - bounced
+        - expired
+        - attachment_too_large
+        - attachment_unavailable
+        - dkim_key_mismatch
+        - sending_restricted
+        - platform_error
+        - not_delivered
+      x-enum-varnames:
+        - EmailFailureReasonSuppressed
+        - EmailFailureReasonInvalidRecipient
+        - EmailFailureReasonBounced
+        - EmailFailureReasonExpired
+        - EmailFailureReasonAttachmentTooLarge
+        - EmailFailureReasonAttachmentUnavailable
+        - EmailFailureReasonDkimKeyMismatch
+        - EmailFailureReasonSendingRestricted
+        - EmailFailureReasonPlatformError
+        - EmailFailureReasonNotDelivered
+      description: >
+        Why the email failed. suppressed means the recipient is on the suppression list, invalid_recipient means
+        the address cannot receive mail, bounced means a receiving server refused the message, expired means
+        delivery kept being deferred until the retry window ran out, attachment_too_large and attachment_unavailable
+        mean an attachment could not be included, dkim_key_mismatch means the sending domain's DKIM record is missing
+        or does not match its signing key, sending_restricted means sending from the workspace was restricted until
+        the message expired, platform_error means the failure was on the Epostix side, and not_delivered means
+        the message was not delivered for a reason that could not be attributed. New values may be added.
+    EmailFailureFault:
+      type: string
+      enum: [recipient, sender, platform, unknown]
+      x-enum-varnames:
+        - EmailFailureFaultRecipient
+        - EmailFailureFaultSender
+        - EmailFailureFaultPlatform
+        - EmailFailureFaultUnknown
+      description: >
+        Who is responsible for the failure. recipient means the address itself, sender means the message, the
+        sending domain or the workspace, platform means Epostix, and unknown means it could not be determined.
+    EmailFailure:
+      type: object
+      required:
+        - reason
+        - fault
+      description: Why a failed email was not delivered. Present only on emails whose status is failed.
+      properties:
+        reason:
+          $ref: '#/components/schemas/EmailFailureReason'
+        fault:
+          $ref: '#/components/schemas/EmailFailureFault'
     BounceFault:
       type: string
       enum: [recipient, sender, unknown]
