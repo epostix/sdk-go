@@ -714,9 +714,9 @@ paths:
                           to: "user@example.com"
                           from: "sender@yourdomain.com"
                           subject: "Welcome aboard"
-                          delivered_at: "2024-01-15T10:30:01Z"
-                          smtp_code: 250
-                          mx_host: "alt1.gmail-smtp-in.l.google.com"
+                          attempt: 1
+                          mx_hostname: "alt1.gmail-smtp-in.l.google.com"
+                          smtp_response: "250 2.0.0 OK"
                     has_more: false
         '400':
           description: Bad request
@@ -774,13 +774,16 @@ paths:
                     created_at: "2024-01-15T10:30:02Z"
                     data:
                       to: "invalid@example.com"
-                      bounce_type: "hard"
-                      bounce_subtype: "mailbox_not_found"
+                      from: "hello@example.com"
+                      subject: "Welcome aboard"
+                      fault: "recipient"
+                      reason: "mailbox_unknown"
+                      permanent: true
+                      source: "smtp"
                       smtp_code: 550
                       enhanced_status_code: "5.1.1"
                       provider: "gmail"
-                      recommended_action: "clean"
-                      original_error: "550 5.1.1 The email account does not exist"
+                      response: "550 5.1.1 The email account does not exist"
                 click:
                   summary: Click event
                   value:
@@ -793,7 +796,7 @@ paths:
                       url: "https://example.com/pricing"
                       ip_address: "192.168.1.1"
                       user_agent: "Mozilla/5.0..."
-                      click_count: 1
+                      is_machine_click: false
         '401':
           description: Unauthorized
           content:
@@ -4108,13 +4111,20 @@ components:
           type: object
           additionalProperties: true
           description: |
-            Event-specific data. Structure varies by event type:
-            - **delivered**: to, from, subject, delivered_at, smtp_code, mx_host
-            - **bounced**: to, bounce_type, bounce_subtype, smtp_code, enhanced_status_code, provider, recommended_action, original_error
-            - **opened**: to, ip_address, user_agent, open_source
-            - **clicked**: to, url, ip_address, user_agent, click_count
-            - **complained**: to, bounce_type
-            - **sent/failed/delayed**: event metadata
+            Event-specific data. Every email event carries to, from and subject. The rest varies by event type:
+            - **sent**: nothing more
+            - **delivered**: attempt, mx_hostname, smtp_response
+            - **bounced**: fault, reason, permanent, source, provider, smtp_code, enhanced_status_code, response.
+              fault is recipient, sender or unknown (see BounceFault), reason is one of BounceReason, source is smtp or ndr
+              (see BounceSource). provider, smtp_code, enhanced_status_code and response are present when known.
+              Failures on the Epostix side never produce a bounced event.
+            - **failed/delayed**: reason (a readable description), attempt, mx_hostname, next_attempt_at (delayed only), and
+              bounce, an object with the bounced fields above, present only when the receiving system gave a verdict
+            - **opened**: ip_address, user_agent, open_source, device_type, os, os_version, client, client_version, is_bot, is_machine_open
+            - **clicked**: url, ip_address, user_agent, the opened fields and is_machine_click
+            - **complained**: feedback_type, provider, reported_at
+
+            Test mode events also carry simulated and outcome.
 
             email.bounced and email.failed can arrive after email.delivered: a receiving server
             may accept a message and report later that it could not be delivered.
@@ -5777,15 +5787,69 @@ components:
           items:
             $ref: '#/components/schemas/BounceHistoryEntry'
 
+    BounceFault:
+      type: string
+      enum: [recipient, sender, unknown]
+      description: >
+        Who the receiving system held responsible. recipient means the address itself cannot take mail,
+        sender means the message or the sending reputation was refused, unknown means the reply did not say.
+        Failures on the Epostix side never appear as a bounce.
+    BounceReason:
+      type: string
+      enum:
+        - mailbox_unknown
+        - mailbox_full
+        - mailbox_disabled
+        - domain_unroutable
+        - blocklist
+        - reputation
+        - rate_limited
+        - policy
+        - content
+        - authentication
+        - sender_address
+        - unclassified
+      description: >
+        Why the message was refused. mailbox_unknown, mailbox_full, mailbox_disabled and domain_unroutable come
+        with fault recipient; unclassified comes with fault unknown; every other reason comes with fault sender.
+    BounceSource:
+      type: string
+      enum: [smtp, ndr]
+      description: smtp is the receiving server's reply during delivery, ndr is a bounce message received after the server accepted the email.
     BounceHistoryEntry:
       type: object
+      required:
+        - kind
+        - created_at
       properties:
-        bounce_type:
+        kind:
           type: string
-        bounce_subtype:
+          enum: [bounce, complaint]
+          description: A bounce carries the verdict fields; a complaint carries feedback_type.
+        fault:
+          $ref: '#/components/schemas/BounceFault'
+        reason:
+          $ref: '#/components/schemas/BounceReason'
+        permanent:
+          type: boolean
+          description: Whether the receiving system said retrying will not help.
+        source:
+          $ref: '#/components/schemas/BounceSource'
+        provider:
           type: string
+          description: Mailbox provider that reported the bounce or complaint, for example gmail or microsoft.
         smtp_code:
           type: integer
+          description: SMTP reply code. Absent when the receiving system gave none.
+        enhanced_status_code:
+          type: string
+          description: RFC 3463 enhanced status code, for example 5.1.1.
+        response:
+          type: string
+          description: The receiving system's response text.
+        feedback_type:
+          type: string
+          description: Feedback type of the complaint report, for example abuse. Present only on complaints.
         created_at:
           type: string
           format: date-time
