@@ -369,11 +369,120 @@ type AttachmentURL struct {
 	ContentType *string `json:"content_type,omitempty"`
 }
 
+type BounceFault string
+
+const (
+	BounceFaultRecipient BounceFault = "recipient"
+	BounceFaultSender    BounceFault = "sender"
+	BounceFaultUnknown   BounceFault = "unknown"
+)
+
+var knownBounceFault = map[BounceFault]bool{
+	BounceFaultRecipient: true,
+	BounceFaultSender:    true,
+	BounceFaultUnknown:   true,
+}
+
+func (v BounceFault) Known() bool {
+	return knownBounceFault[v]
+}
+
+func (v BounceFault) String() string {
+	return string(v)
+}
+
 type BounceHistoryEntry struct {
-	BounceSubtype *string    `json:"bounce_subtype,omitempty"`
-	BounceType    *string    `json:"bounce_type,omitempty"`
-	CreatedAt     *time.Time `json:"created_at,omitempty"`
-	SMTPCode      *int       `json:"smtp_code,omitempty"`
+	CreatedAt          time.Time              `json:"created_at"`
+	Kind               BounceHistoryEntryKind `json:"kind"`
+	EnhancedStatusCode *string                `json:"enhanced_status_code,omitempty"`
+	Fault              *BounceFault           `json:"fault,omitempty"`
+	FeedbackType       *string                `json:"feedback_type,omitempty"`
+	Permanent          *bool                  `json:"permanent,omitempty"`
+	Provider           *string                `json:"provider,omitempty"`
+	Reason             *BounceReason          `json:"reason,omitempty"`
+	Response           *string                `json:"response,omitempty"`
+	SMTPCode           *int                   `json:"smtp_code,omitempty"`
+	Source             *BounceSource          `json:"source,omitempty"`
+}
+
+type BounceHistoryEntryKind string
+
+const (
+	BounceHistoryEntryKindBounce    BounceHistoryEntryKind = "bounce"
+	BounceHistoryEntryKindComplaint BounceHistoryEntryKind = "complaint"
+)
+
+var knownBounceHistoryEntryKind = map[BounceHistoryEntryKind]bool{
+	BounceHistoryEntryKindBounce:    true,
+	BounceHistoryEntryKindComplaint: true,
+}
+
+func (v BounceHistoryEntryKind) Known() bool {
+	return knownBounceHistoryEntryKind[v]
+}
+
+func (v BounceHistoryEntryKind) String() string {
+	return string(v)
+}
+
+type BounceReason string
+
+const (
+	BounceReasonMailboxUnknown   BounceReason = "mailbox_unknown"
+	BounceReasonMailboxFull      BounceReason = "mailbox_full"
+	BounceReasonMailboxDisabled  BounceReason = "mailbox_disabled"
+	BounceReasonDomainUnroutable BounceReason = "domain_unroutable"
+	BounceReasonBlocklist        BounceReason = "blocklist"
+	BounceReasonReputation       BounceReason = "reputation"
+	BounceReasonRateLimited      BounceReason = "rate_limited"
+	BounceReasonPolicy           BounceReason = "policy"
+	BounceReasonContent          BounceReason = "content"
+	BounceReasonAuthentication   BounceReason = "authentication"
+	BounceReasonSenderAddress    BounceReason = "sender_address"
+	BounceReasonUnclassified     BounceReason = "unclassified"
+)
+
+var knownBounceReason = map[BounceReason]bool{
+	BounceReasonMailboxUnknown:   true,
+	BounceReasonMailboxFull:      true,
+	BounceReasonMailboxDisabled:  true,
+	BounceReasonDomainUnroutable: true,
+	BounceReasonBlocklist:        true,
+	BounceReasonReputation:       true,
+	BounceReasonRateLimited:      true,
+	BounceReasonPolicy:           true,
+	BounceReasonContent:          true,
+	BounceReasonAuthentication:   true,
+	BounceReasonSenderAddress:    true,
+	BounceReasonUnclassified:     true,
+}
+
+func (v BounceReason) Known() bool {
+	return knownBounceReason[v]
+}
+
+func (v BounceReason) String() string {
+	return string(v)
+}
+
+type BounceSource string
+
+const (
+	BounceSourceSMTP BounceSource = "smtp"
+	BounceSourceNdr  BounceSource = "ndr"
+)
+
+var knownBounceSource = map[BounceSource]bool{
+	BounceSourceSMTP: true,
+	BounceSourceNdr:  true,
+}
+
+func (v BounceSource) Known() bool {
+	return knownBounceSource[v]
+}
+
+func (v BounceSource) String() string {
+	return string(v)
 }
 
 type Broadcast struct {
