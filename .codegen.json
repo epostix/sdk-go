@@ -1,12 +1,12 @@
 {
   "generator": "epostix-codegen",
   "spec": {
-    "raw_sha256": "54379af3745df1d6ff6e25c0a00105eefcc7887a70aaf39db0998e3ffce4a8a7",
-    "contract_sha256": "8bf52ce46c813c19a334353438be0aa57e581a6b4a81fa6c03ccb6c8c36d47e0"
+    "raw_sha256": "72de09f5e93b83fdb289ea97e19be05d6fc84a97b08712c01632f1c043d84edf",
+    "contract_sha256": "4ed332796134bba5e003a8639bbdb4fcc52e94a6ed63775902f5b8b5e7935f60"
   },
-  "ir_sha256": "b6ce8bbe98f47fad49e3c929de5d8094da77a2144ec228074cbb5dc87fcb1193",
+  "ir_sha256": "4bebcf75e0f33dead6f62988996a6893a17f77cb7db036146aea1e514f08a295",
   "files": {
-    "models_gen.go": "9fed3bf0f8f55fcfab5e9c1d210abd6b0f6a3d6392b52701d30c461d4486acc7",
+    "models_gen.go": "ee5f8361a43e4e596164837a83a82054ebcf6c9030974a25228e6f53ad0618f6",
     "unions_gen.go": "46a7180792876ff820b98fa1bc73cfa459b2400ef0a86f4673d1abe4f3d7979a",
     "operations_gen.go": "aaad9516d0509d09d9fad7cbb7a385b28af58285acdc3785675cbb4a1451a66f",
     "analytics_gen.go": "e3630bbaa08e129468c1854858b3376b9684cc0907c58d1219a9fce81db105dc",
