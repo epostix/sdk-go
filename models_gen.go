@@ -398,7 +398,7 @@ type BounceHistoryEntry struct {
 	Fault              *BounceFault           `json:"fault,omitempty"`
 	FeedbackType       *string                `json:"feedback_type,omitempty"`
 	Permanent          *bool                  `json:"permanent,omitempty"`
-	Provider           *string                `json:"provider,omitempty"`
+	Provider           *MailboxProvider       `json:"provider,omitempty"`
 	Reason             *BounceReason          `json:"reason,omitempty"`
 	Response           *string                `json:"response,omitempty"`
 	SMTPCode           *int                   `json:"smtp_code,omitempty"`
@@ -428,33 +428,35 @@ func (v BounceHistoryEntryKind) String() string {
 type BounceReason string
 
 const (
-	BounceReasonMailboxUnknown   BounceReason = "mailbox_unknown"
-	BounceReasonMailboxFull      BounceReason = "mailbox_full"
-	BounceReasonMailboxDisabled  BounceReason = "mailbox_disabled"
-	BounceReasonDomainUnroutable BounceReason = "domain_unroutable"
-	BounceReasonBlocklist        BounceReason = "blocklist"
-	BounceReasonReputation       BounceReason = "reputation"
-	BounceReasonRateLimited      BounceReason = "rate_limited"
-	BounceReasonPolicy           BounceReason = "policy"
-	BounceReasonContent          BounceReason = "content"
-	BounceReasonAuthentication   BounceReason = "authentication"
-	BounceReasonSenderAddress    BounceReason = "sender_address"
-	BounceReasonUnclassified     BounceReason = "unclassified"
+	BounceReasonMailboxUnknown    BounceReason = "mailbox_unknown"
+	BounceReasonMailboxFull       BounceReason = "mailbox_full"
+	BounceReasonMailboxDisabled   BounceReason = "mailbox_disabled"
+	BounceReasonDomainUnroutable  BounceReason = "domain_unroutable"
+	BounceReasonBlocklist         BounceReason = "blocklist"
+	BounceReasonReputation        BounceReason = "reputation"
+	BounceReasonRateLimited       BounceReason = "rate_limited"
+	BounceReasonPolicy            BounceReason = "policy"
+	BounceReasonContent           BounceReason = "content"
+	BounceReasonAuthentication    BounceReason = "authentication"
+	BounceReasonSenderAddress     BounceReason = "sender_address"
+	BounceReasonDomainUnreachable BounceReason = "domain_unreachable"
+	BounceReasonUnclassified      BounceReason = "unclassified"
 )
 
 var knownBounceReason = map[BounceReason]bool{
-	BounceReasonMailboxUnknown:   true,
-	BounceReasonMailboxFull:      true,
-	BounceReasonMailboxDisabled:  true,
-	BounceReasonDomainUnroutable: true,
-	BounceReasonBlocklist:        true,
-	BounceReasonReputation:       true,
-	BounceReasonRateLimited:      true,
-	BounceReasonPolicy:           true,
-	BounceReasonContent:          true,
-	BounceReasonAuthentication:   true,
-	BounceReasonSenderAddress:    true,
-	BounceReasonUnclassified:     true,
+	BounceReasonMailboxUnknown:    true,
+	BounceReasonMailboxFull:       true,
+	BounceReasonMailboxDisabled:   true,
+	BounceReasonDomainUnroutable:  true,
+	BounceReasonBlocklist:         true,
+	BounceReasonReputation:        true,
+	BounceReasonRateLimited:       true,
+	BounceReasonPolicy:            true,
+	BounceReasonContent:           true,
+	BounceReasonAuthentication:    true,
+	BounceReasonSenderAddress:     true,
+	BounceReasonDomainUnreachable: true,
+	BounceReasonUnclassified:      true,
 }
 
 func (v BounceReason) Known() bool {
@@ -468,13 +470,15 @@ func (v BounceReason) String() string {
 type BounceSource string
 
 const (
-	BounceSourceSMTP BounceSource = "smtp"
-	BounceSourceNdr  BounceSource = "ndr"
+	BounceSourceSMTP            BounceSource = "smtp"
+	BounceSourceNdr             BounceSource = "ndr"
+	BounceSourceSuppressionList BounceSource = "suppression_list"
 )
 
 var knownBounceSource = map[BounceSource]bool{
-	BounceSourceSMTP: true,
-	BounceSourceNdr:  true,
+	BounceSourceSMTP:            true,
+	BounceSourceNdr:             true,
+	BounceSourceSuppressionList: true,
 }
 
 func (v BounceSource) Known() bool {
@@ -1622,6 +1626,64 @@ func (v ListWebhookLogsStatus) String() string {
 type MailboxAddressValue struct {
 	Email string  `json:"email"`
 	Name  *string `json:"name,omitempty"`
+}
+
+type MailboxProvider string
+
+const (
+	MailboxProviderGmail        MailboxProvider = "gmail"
+	MailboxProviderMicrosoft    MailboxProvider = "microsoft"
+	MailboxProviderYahoo        MailboxProvider = "yahoo"
+	MailboxProviderApple        MailboxProvider = "apple"
+	MailboxProviderProton       MailboxProvider = "proton"
+	MailboxProviderZoho         MailboxProvider = "zoho"
+	MailboxProviderGmx          MailboxProvider = "gmx"
+	MailboxProviderWp           MailboxProvider = "wp"
+	MailboxProviderOnet         MailboxProvider = "onet"
+	MailboxProviderInteria      MailboxProvider = "interia"
+	MailboxProviderMailru       MailboxProvider = "mailru"
+	MailboxProviderYandex       MailboxProvider = "yandex"
+	MailboxProviderOrange       MailboxProvider = "orange"
+	MailboxProviderFree         MailboxProvider = "free"
+	MailboxProviderSfr          MailboxProvider = "sfr"
+	MailboxProviderLaposte      MailboxProvider = "laposte"
+	MailboxProviderTonline      MailboxProvider = "tonline"
+	MailboxProviderSeznam       MailboxProvider = "seznam"
+	MailboxProviderItaliaonline MailboxProvider = "italiaonline"
+	MailboxProviderComcast      MailboxProvider = "comcast"
+	MailboxProviderOther        MailboxProvider = "other"
+)
+
+var knownMailboxProvider = map[MailboxProvider]bool{
+	MailboxProviderGmail:        true,
+	MailboxProviderMicrosoft:    true,
+	MailboxProviderYahoo:        true,
+	MailboxProviderApple:        true,
+	MailboxProviderProton:       true,
+	MailboxProviderZoho:         true,
+	MailboxProviderGmx:          true,
+	MailboxProviderWp:           true,
+	MailboxProviderOnet:         true,
+	MailboxProviderInteria:      true,
+	MailboxProviderMailru:       true,
+	MailboxProviderYandex:       true,
+	MailboxProviderOrange:       true,
+	MailboxProviderFree:         true,
+	MailboxProviderSfr:          true,
+	MailboxProviderLaposte:      true,
+	MailboxProviderTonline:      true,
+	MailboxProviderSeznam:       true,
+	MailboxProviderItaliaonline: true,
+	MailboxProviderComcast:      true,
+	MailboxProviderOther:        true,
+}
+
+func (v MailboxProvider) Known() bool {
+	return knownMailboxProvider[v]
+}
+
+func (v MailboxProvider) String() string {
+	return string(v)
 }
 
 type PermissionGrant = string
